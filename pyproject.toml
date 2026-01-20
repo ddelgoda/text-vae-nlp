@@ -8,6 +8,7 @@ dependencies = [
     "datasets>=4.4.2",
     "gradio>=6.3.0",
     "lightning>=2.6.0",
+    "matplotlib>=3.10.8",
     "pyyaml>=6.0.3",
     "rich>=14.2.0",
     "sentencepiece>=0.2.1",
