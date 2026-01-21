@@ -7,15 +7,6 @@
 # - runs Lightning training
 # ------------------------------------------------------------
 
-# Entry point for training the TextEmbeddingVAE
-
-# This file:
-
-# - loads a small public dataset
-
-# - tokenizes text
-
-# - runs Lightning training
 
 import argparse
 import lightning as L
@@ -36,7 +27,7 @@ def main():
     parser.add_argument("--max_length", type=int, default=64)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--max_epochs", type=int, default=1)
-    parser.add_argument("--limit_train", type=int, default=500)
+    parser.add_argument("--limit_train", type=int, default=1000)
     parser.add_argument("--latent_dim", type=int, default=32)
     parser.add_argument("--hidden_dim", type=int, default=256)
     parser.add_argument("--freeze_transformer", action="store_true")
@@ -78,7 +69,6 @@ def main():
     val_ds= val_ds.select(range(min(args.limit_val, len(val_ds))))
 
     def tokenize(batch):
-
         return tokenizer(
             batch["text"],
             truncation=True,
@@ -119,7 +109,7 @@ def main():
     ckpt_cb = ModelCheckpoint(
         dirpath=str(run_dir / "checkpoints"),
         filename="best",
-        monitor="val/total_loss_epoch",
+        monitor="val/total_loss",
         mode="min",
         save_top_k=1,
         save_last=True,

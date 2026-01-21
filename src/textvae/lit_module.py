@@ -74,7 +74,7 @@ class LitTextVAE(L.LightningModule):
                 "train/kl_loss": kl_loss,
             },
             prog_bar=True,
-            on_step=True,
+            on_step=False,
             on_epoch=True,
         )
         return loss
@@ -94,7 +94,7 @@ class LitTextVAE(L.LightningModule):
                 "val/kl_loss": kl_loss,
             },
             prog_bar=False,
-            on_step=True,
+            on_step=False,  # On setp metrices are noisy
             on_epoch=True,
         )
         return loss
