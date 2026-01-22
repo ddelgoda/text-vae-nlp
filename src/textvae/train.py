@@ -9,24 +9,28 @@
 
 
 import argparse
-import lightning as L
-from torch.utils.data import DataLoader
-from datasets import load_dataset
-from transformers import AutoTokenizer
-from textvae.lit_module import LitTextVAE
+import json
 from datetime import datetime
 from pathlib import Path
-import json
+
+import lightning as L
+from datasets import load_dataset
 from lightning.pytorch.callbacks import ModelCheckpoint
+from torch.utils.data import DataLoader
+from transformers import AutoTokenizer
+
+from textvae.lit_module import LitTextVAE
 
 
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name", default="sentence-transformers/all-MiniLM-L6-v2")
+    parser.add_argument(
+        "--model_name", default="sentence-transformers/all-MiniLM-L6-v2"
+    )
     parser.add_argument("--max_length", type=int, default=64)
     parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--max_epochs", type=int, default=1)
+    parser.add_argument("--max_epochs", type=int, default=5)
     parser.add_argument("--limit_train", type=int, default=1000)
     parser.add_argument("--latent_dim", type=int, default=32)
     parser.add_argument("--hidden_dim", type=int, default=256)
@@ -42,31 +46,31 @@ def main():
     run_dir = Path("runs") / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     run_cfg = {
-    "model_name": args.model_name,
-    "max_length": args.max_length,
-    "batch_size": args.batch_size,
-    "latent_dim": args.latent_dim,
-    "hidden_dim": args.hidden_dim,
-    "freeze_transformer": bool(args.freeze_transformer),
-    "lr": args.lr,
-    "beta": args.beta,
-    "limit_val": args.limit_val,
+        "model_name": args.model_name,
+        "max_length": args.max_length,
+        "batch_size": args.batch_size,
+        "latent_dim": args.latent_dim,
+        "hidden_dim": args.hidden_dim,
+        "freeze_transformer": bool(args.freeze_transformer),
+        "lr": args.lr,
+        "beta": args.beta,
+        "limit_val": args.limit_val,
     }
 
-    (run_dir / "run_config.json").write_text(json.dumps(run_cfg, indent=2), encoding="utf-8")
+    (run_dir / "run_config.json").write_text(
+        json.dumps(run_cfg, indent=2), encoding="utf-8"
+    )
 
     # Tokenizer
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
     # Load a simple public dataset (news headlines)
     ds = load_dataset("ag_news")
-    train_ds=ds["train"]
-    val_ds=ds["test"]
+    train_ds = ds["train"]
+    val_ds = ds["test"]
 
-    
-
-    train_ds= train_ds.select(range(min(args.limit_train, len(train_ds))))
-    val_ds= val_ds.select(range(min(args.limit_val, len(val_ds))))
+    train_ds = train_ds.select(range(min(args.limit_train, len(train_ds))))
+    val_ds = val_ds.select(range(min(args.limit_val, len(val_ds))))
 
     def tokenize(batch):
         return tokenizer(
@@ -76,24 +80,26 @@ def main():
             max_length=args.max_length,
         )
 
-    train_ds = train_ds.map(tokenize, batched=True, remove_columns=train_ds.column_names)
+    train_ds = train_ds.map(
+        tokenize, batched=True, remove_columns=train_ds.column_names
+    )
     val_ds = val_ds.map(tokenize, batched=True, remove_columns=val_ds.column_names)
     train_ds.set_format(type="torch", columns=["input_ids", "attention_mask"])
     val_ds.set_format(type="torch", columns=["input_ids", "attention_mask"])
     train_loader = DataLoader(
-            train_ds,
-            batch_size=args.batch_size,
-            shuffle=True,
-            num_workers=args.num_workers,
-            persistent_workers=(args.num_workers > 0),
-            )
+        train_ds,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers,
+        persistent_workers=(args.num_workers > 0),
+    )
     val_loader = DataLoader(
-            val_ds,
-            batch_size=args.batch_size,
-            shuffle=False,
-            num_workers=args.num_workers,
-            persistent_workers=(args.num_workers > 0),
-            )
+        val_ds,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        persistent_workers=(args.num_workers > 0),
+    )
     # Lightning module
 
     model = LitTextVAE(
@@ -103,8 +109,8 @@ def main():
         freeze_transformer=args.freeze_transformer,
         lr=args.lr,
         beta=args.beta,
-        run_dir=str(run_dir)
-        )
+        run_dir=str(run_dir),
+    )
 
     ckpt_cb = ModelCheckpoint(
         dirpath=str(run_dir / "checkpoints"),
@@ -113,8 +119,7 @@ def main():
         mode="min",
         save_top_k=1,
         save_last=True,
-        )
- 
+    )
 
     trainer = L.Trainer(
         max_epochs=args.max_epochs,
@@ -131,4 +136,3 @@ def main():
 if __name__ == "__main__":
 
     main()
- 

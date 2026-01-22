@@ -16,3 +16,20 @@ dependencies = [
     "torchmetrics>=1.8.2",
     "transformers>=4.57.3",
 ]
+
+[dependency-groups]
+dev = [
+    "black>=26.1.0",
+    "ruff>=0.14.13",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]  # Black handles line length

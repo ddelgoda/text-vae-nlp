@@ -7,13 +7,15 @@
 # - which optimizer is used
 # ------------------------------------------------------------
 
-import lightning as L
-import torch
-import torch.nn.functional as F
-from textvae.model import TextEmbeddingVAE
 import json
 from pathlib import Path
 from typing import Optional
+
+import lightning as L
+import torch
+import torch.nn.functional as F
+
+from textvae.model import TextEmbeddingVAE
 
 
 class LitTextVAE(L.LightningModule):
@@ -25,7 +27,7 @@ class LitTextVAE(L.LightningModule):
         freeze_transformer: bool = True,
         lr: float = 2e-4,
         beta: float = 1.0,
-        run_dir:Optional[str]=None,
+        run_dir: Optional[str] = None,
     ):
         super().__init__()
         # Save all hyperparameters for logging / reproducibility
@@ -39,7 +41,7 @@ class LitTextVAE(L.LightningModule):
         )
         self.lr = lr
         self.beta = beta
-        self.run_dir=Path(run_dir) if run_dir else None
+        self.run_dir = Path(run_dir) if run_dir else None
 
     @staticmethod
     def kl_diag_gaussian(mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
@@ -59,7 +61,10 @@ class LitTextVAE(L.LightningModule):
         Lightning calls this automatically.
         """
         # Forward pass through the VAE
-        out = self.vae(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"],)
+        out = self.vae(
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+        )
         # Reconstruction loss (embedding space)
         recon_loss = F.mse_loss(out.recon_emb, out.emb)
         # KL divergence loss
@@ -98,6 +103,7 @@ class LitTextVAE(L.LightningModule):
             on_epoch=True,
         )
         return loss
+
     def on_fit_start(self):
 
         self.train()
@@ -109,6 +115,7 @@ class LitTextVAE(L.LightningModule):
         if self.run_dir is None:
             return
         self.run_dir.mkdir(parents=True, exist_ok=True)
+
         def _get_float(key: str):
             v = self.trainer.callback_metrics.get(key)
             if v is None:
@@ -116,6 +123,7 @@ class LitTextVAE(L.LightningModule):
             if isinstance(v, torch.Tensor):
                 return float(v.detach().cpu().item())
             return float(v)
+
         best_path = None
         best_score = None
         for cb in self.trainer.callbacks:
@@ -132,9 +140,11 @@ class LitTextVAE(L.LightningModule):
             "model_name": str(self.hparams.model_name),
             "freeze_transformer": bool(self.hparams.freeze_transformer),
             "lr": float(self.hparams.lr),
-            "recon_loss": _get_float("val/recon_loss_epoch") or _get_float("val/recon_loss"),
+            "recon_loss": _get_float("val/recon_loss_epoch")
+            or _get_float("val/recon_loss"),
             "kl_loss": _get_float("val/kl_loss_epoch") or _get_float("val/kl_loss"),
-            "total_loss": _get_float("val/total_loss_epoch") or _get_float("val/total_loss"),
+            "total_loss": _get_float("val/total_loss_epoch")
+            or _get_float("val/total_loss"),
             "best_model_path": best_path,
             "best_model_score": best_score,
         }
