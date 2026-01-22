@@ -42,30 +42,22 @@ This project demonstrates:
 - VAE applied to embedding space
 - Gaussian latent distribution
 
-### Loss
+### Loss Function
 
-\[
-
-\mathcal{L} = \text{Reconstruction Loss} + \beta \cdot \text{KL Divergence}
-
-\]
+The model is trained using the function:
+```text
+Loss = Rconstruction Loss+beta x KL Divergence
+```
 
 ### Configuration
 
 | Component | Value |
-
 |----------|-------|
-
 | Dataset | AG News |
-
 | Token length | 64 |
-
 | Latent dims | 4, 8, 16, 32, 64 |
-
 | KL weights | 0.0 – 4.0 |
-
 | Optimiser | AdamW |
-
 | Framework | PyTorch Lightning |
 
 ---
@@ -95,6 +87,7 @@ This project demonstrates:
 ---
 
 ## Repository Structure
+```
  text-vae-nlp/
 │
 ├── src/textvae/
@@ -113,6 +106,7 @@ This project demonstrates:
 ├── pyproject.toml
 ├── README.md
 └── .gitignore
+```
 
 ## Training the Model
 The model is trained using a Variational Autoencoder (VAE) applied to sentence embeddings.  
@@ -178,11 +172,12 @@ This generates:
 - Visualisations and summary metrics
 
 Artifacts are written to:
-
+```
 artifacts/
 ├── pareto_plot.png
 ├── pareto_front.csv
 └── sweet_spot.json
+```
 
 Transformer weights are frozen for stability
 - Metrics are logged at epoch level
