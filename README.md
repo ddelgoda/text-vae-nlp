@@ -190,3 +190,13 @@ Evaluation behaviour can be controlled via command-line arguments:
 uv run python eval.py \
  --kl_min 0.01 
 ```
+
+## Optimisation Notes
+No learning rate scheduler is used in this project.
+The goal is to study **latent space behaviour**, not optimisation performance.  
+Since the encoder is frozen and the VAE is shallow, the dominant factors are:
+- latent dimensionality  
+- KL weighting  
+- posterior collapse behaviour  
+Adding a scheduler would introduce an extra variable without improving interpretability.
+Learning rate scheduling is left as a future extension.
