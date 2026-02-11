@@ -152,7 +152,7 @@ class TextEmbeddingVAE(nn.Module):
         # --------------------------------------------------------
         self.to_hidden = nn.Sequential(
             nn.Linear(emb_dim, hidden_dim),
-            nn.ReLU(),
+            nn.ReLU(),    # derivative does not diminish the error signal like sigmoid
             nn.Dropout(p=0.1),  # 0.1 dropout to avoid memorisation
         )
         # Mean of latent Gaussian

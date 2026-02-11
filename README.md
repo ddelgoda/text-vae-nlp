@@ -46,7 +46,7 @@ This project demonstrates:
 
 The model is trained using the function:
 ```text
-Loss = Rconstruction Loss+beta x KL Divergence
+Loss = Rconstruction Loss+ x KL Divergence
 ```
 
 ### Configuration
@@ -93,7 +93,7 @@ Loss = Rconstruction Loss+beta x KL Divergence
 ├── src/textvae/
 │   ├── model.py          # Transformer + VAE
 │   ├── lit_module.py     # Lightning training logic
-│   └── init.py
+│   └── __init__.py
 │
 ├── train.py              # Training entry point
 ├── eval.py               # Pareto analysis + plotting
@@ -138,13 +138,13 @@ uv run python train.py \
 ```
 ### What Happens During Training
 
-- Sentence embeddings are extracted using a frozen transformer
+- Sentence embeddings are extracted using a frozen transformer for stability
 - A VAE learns to reconstruct embeddings
 - KL divergence regularises the latent space
 - Metrics are logged per epoch:
-- reconstruction loss
-- KL divergence
-- total loss
+  - reconstruction loss
+  - KL divergence
+  - total loss
 
 Training is handled using PyTorch Lightning for:
 - reproducibility
@@ -153,10 +153,10 @@ Training is handled using PyTorch Lightning for:
 
 ## Evaluating the model
 
-### Run evalution
+### Run evaluation
 To evaluate the model, run:
 ```bash
-uv eval python train.py
+uv run python eval.py
 ```
 
 This performs:
@@ -179,8 +179,6 @@ artifacts/
 └── sweet_spot.json
 ```
 
-Transformer weights are frozen for stability
-- Metrics are logged at epoch level
 - KL collapse is explicitly handled
 - Experiments are fully reproducible
 

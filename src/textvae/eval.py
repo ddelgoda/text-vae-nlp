@@ -49,7 +49,7 @@ def knee_point(front: pd.DataFrame, x: str, y: str) -> Tuple[int, float]:
     return best_i, best_d
 
 
-def plot_pareto(df, front, sweet, outdir):
+def plot_pareto(df, front, sweet, outdir, kl_min:float):
 
     outdir.mkdir(parents=True, exist_ok=True)
     plt.figure(figsize=(7, 5))
@@ -81,7 +81,7 @@ def plot_pareto(df, front, sweet, outdir):
 
     # Collapse threshold line
     plt.axvline(
-        x=0.05,
+        x=kl_min,
         linestyle="--",
         alpha=0.5,
         label="KL collapse threshold",
@@ -125,6 +125,8 @@ def main():
     df["recon_loss"] = pd.to_numeric(df["recon_loss"])
     df["kl_loss"] = pd.to_numeric(df["kl_loss"])
     df = df[df["kl_loss"] > kl_min].reset_index(drop=True)  # avoids posterior collapse
+    if df.empty:
+        raise RuntimeError(f"No runs left after filtering with kl_min={kl_min}")
     df.to_csv(outdir / "pareto_all.csv", index=False)
     front = pareto_front_min(df, x="kl_loss", y="recon_loss")
     front.to_csv(outdir / "pareto_front.csv", index=False)
@@ -139,13 +141,12 @@ def main():
     (outdir / "sweet_spot.json").write_text(
         json.dumps(sweet_out, indent=2), encoding="utf-8"
     )
-    plot_pareto(df, front, sweet, outdir)
+    plot_pareto(df, front, sweet, outdir, kl_min)
     print("Wrote:")
     print(outdir / "pareto_all.csv")
     print(outdir / "pareto_front.csv")
     print(outdir / "sweet_spot.json")
     print(outdir / "pareto_plot.png")
-    print(outdir / "pareto_plot_annotated.png")
     print("\nSweet spot:")
     print(json.dumps(sweet_out, indent=2))
 

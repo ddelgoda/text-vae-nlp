@@ -58,7 +58,6 @@ class LitTextVAE(L.LightningModule):
     def training_step(self, batch, batch_idx):
         """
         One training step on one batch.
-        Lightning calls this automatically.
         """
         # Forward pass through the VAE
         out = self.vae(
