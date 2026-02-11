@@ -46,7 +46,7 @@ This project demonstrates:
 
 The model is trained using the function:
 ```text
-Loss = Rconstruction Loss+ x KL Divergence
+Loss = Rconstruction Loss+ β x KL Divergence
 ```
 
 ### Configuration
@@ -198,3 +198,5 @@ Since the encoder is frozen and the VAE is shallow, the dominant factors are:
 - posterior collapse behaviour  
 Adding a scheduler would introduce an extra variable without improving interpretability.
 Learning rate scheduling is left as a future extension.
+
+Hyperparameter tuning is intentionally out of scope for this repo; the focus is controlled analysis of latent_dim and β. Automated tuning will be added when integrating this encoder into downstream tasks.
