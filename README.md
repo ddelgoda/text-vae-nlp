@@ -31,8 +31,6 @@ This project demonstrates:
 - how to select models using Pareto efficiency  
 - how to structure ML experiments reproducibly  
 
----
-
 ## Model Overview
 
 ### Architecture
@@ -151,12 +149,43 @@ Training is handled using PyTorch Lightning for:
 - clean training loops
 - structured logging
 
+## Sweeping (Phase 1)
+
+### Quick smoke sweep (fast)
+
+```bash
+for z in 8 16 32; do
+  for b in 0.0 1.0 4.0; do
+    uv run python train.py \
+      --latent_dim $z \
+      --beta $b \
+      --max_epochs 3 \
+      --limit_train 500 \
+      --limit_val 200 \
+      --freeze_transformer
+  done
+done
+```
+### Full sweep (slow)
+```bash
+for z in 4 8 16 32 64; do
+  for b in 0.0 0.1 0.5 1.0 2.0 4.0; do
+    uv run python train.py \
+      --latent_dim $z \
+      --beta $b \
+      --max_epochs 5 \
+      --limit_train 1000 \
+      --limit_val 500 \
+      --freeze_transformer
+  done
+done
+```
 ## Evaluating the model
 
 ### Run evaluation
 To evaluate the model, run:
 ```bash
-uv run python eval.py
+uv run python eval.py --kl_min 0.01
 ```
 
 This performs:
@@ -165,17 +194,18 @@ This performs:
 - construction of the Pareto front
 - sweet-spot selection
 - result visualisation
-⸻
-This generates:
-- Pareto front
-- Sweet-spot selection
-- Visualisations and summary metrics
+
 
 Artifacts are written to:
 ```
 artifacts/
 ├── pareto_plot.png
 ├── pareto_front.csv
+├── pareto_plot_annotated.png
+├── pareto_all.csv
+├── heatmap_kl.png
+├── heatmap_recon.png
+├── sweet_spot.csv
 └── sweet_spot.json
 ```
 
@@ -200,3 +230,19 @@ Adding a scheduler would introduce an extra variable without improving interpret
 Learning rate scheduling is left as a future extension.
 
 Hyperparameter tuning is intentionally out of scope for this repo; the focus is controlled analysis of latent_dim and β. Automated tuning will be added when integrating this encoder into downstream tasks.
+
+# Landscape Analysis & Model Selection
+
+To understand the interaction between latent dimensionality and KL regularisation, we perform a structured grid sweep over (latent_dim × beta).
+
+Two complementary visualisations are used:
+- Heatmaps show the full optimisation landscape
+- Reconstruction loss across the grid
+- KL divergence behaviour across the grid
+- Clear regions of posterior collapse
+
+Pareto analysis identifies non-dominated configurations
+- Filters collapsed models (near-zero KL)
+- Computes the efficient frontier
+- Selects a knee-point “sweet spot” balancing compression and reconstruction
+

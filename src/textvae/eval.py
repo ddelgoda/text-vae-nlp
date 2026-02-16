@@ -54,13 +54,28 @@ def plot_pareto(df, front, sweet, outdir, kl_min:float):
     outdir.mkdir(parents=True, exist_ok=True)
     plt.figure(figsize=(7, 5))
 
-    # All runs
+        # Sweet spot
     plt.scatter(
-        df["kl_loss"],
-        df["recon_loss"],
-        alpha=0.4,
-        label="All runs",
+        [sweet["kl_loss"]],
+        [sweet["recon_loss"]],
+        s=200,
+        facecolors="none",
+        edgecolors="red",
+        linewidths=2,
+        label="Selected sweet spot",
     )
+
+    # All runs
+    if "latent_dim" in df.columns:
+        sc = plt.scatter(
+            df["kl_loss"], df["recon_loss"],
+            c=df["latent_dim"],
+            alpha=0.5,
+        )
+        plt.colorbar(sc, label="latent_dim")
+    else:
+        plt.scatter(df["kl_loss"], df["recon_loss"], alpha=0.4, label="All runs")
+
 
     # Pareto front
     plt.plot(
@@ -70,14 +85,23 @@ def plot_pareto(df, front, sweet, outdir, kl_min:float):
         label="Pareto front",
     )
 
-    # Sweet spot
-    plt.scatter(
-        [sweet["kl_loss"]],
-        [sweet["recon_loss"]],
-        marker="X",
-        s=120,
-        label="Selected sweet spot",
-    )
+
+    # Annotate sweet spot with key hyperparams
+    label_bits = []
+    for k in ["latent_dim", "beta"]:
+        if k in sweet.index:
+            label_bits.append(f"{k}={sweet[k]}")
+    if label_bits:
+        plt.annotate(
+            ", ".join(label_bits),
+            (sweet["kl_loss"], sweet["recon_loss"]),
+            textcoords="offset points",
+            xytext=(10, -10),
+            fontsize=9,
+        )
+
+    plt.savefig(outdir / "pareto_plot_annotated.png", dpi=180)
+
 
     # Collapse threshold line
     plt.axvline(
@@ -94,6 +118,59 @@ def plot_pareto(df, front, sweet, outdir, kl_min:float):
     plt.tight_layout()
     plt.savefig(outdir / "pareto_plot.png", dpi=180)
     plt.close()
+
+def plot_heatmaps(df: pd.DataFrame, outdir: Path) -> None:
+    
+    required = {"latent_dim", "beta", "recon_loss", "kl_loss"}
+    if not required.issubset(df.columns):
+        print(f"Skipping heatmaps: missing columns {required - set(df.columns)}")
+        return
+
+    # Aggregate in case multiple runs exist per cell (e.g., different timestamps)
+    pivot_recon = df.pivot_table(
+    index="latent_dim",
+    columns="beta",
+    values="recon_loss",
+    aggfunc="mean",
+    ).sort_index().sort_index(axis=1)
+
+    pivot_kl = df.pivot_table(
+    index="latent_dim",
+    columns="beta",
+    values="kl_loss",
+    aggfunc="mean",
+    ).sort_index().sort_index(axis=1)
+
+    # Helper to plot one heatmap
+    def _plot(pivot: pd.DataFrame, title: str, cbar_label: str, outname: str) -> None:
+        plt.figure(figsize=(9, 6))
+        im = plt.imshow(pivot.values, aspect="auto", interpolation="nearest")
+        plt.colorbar(im, label=cbar_label)
+
+        plt.xticks(range(len(pivot.columns)), [str(x) for x in pivot.columns], rotation=45, ha="right")
+        plt.yticks(range(len(pivot.index)), [str(y) for y in pivot.index])
+
+        plt.xlabel("beta")
+        plt.ylabel("latent_dim")
+        plt.title(title)
+        plt.tight_layout()
+        plt.savefig(outdir / outname, dpi=180)
+        plt.close()
+
+    _plot(
+    pivot_recon,
+    title="Reconstruction Loss Heatmap (mean per grid cell)",
+    cbar_label="recon_loss",
+    outname="heatmap_recon.png",
+    )
+
+    _plot(
+    pivot_kl,
+    title="KL Loss Heatmap (mean per grid cell)",
+    cbar_label="kl_loss",
+    outname="heatmap_kl.png",
+    )
+
 
 
 def main():
@@ -141,7 +218,10 @@ def main():
     (outdir / "sweet_spot.json").write_text(
         json.dumps(sweet_out, indent=2), encoding="utf-8"
     )
+    pd.DataFrame([sweet.to_dict()]).to_csv(outdir / "sweet_spot.csv", index=False)
+
     plot_pareto(df, front, sweet, outdir, kl_min)
+    plot_heatmaps(df, outdir)
     print("Wrote:")
     print(outdir / "pareto_all.csv")
     print(outdir / "pareto_front.csv")
