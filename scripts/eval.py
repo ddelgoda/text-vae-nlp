@@ -4,10 +4,13 @@ import argparse
 import json
 import math
 from pathlib import Path
+import sys
 from typing import List, Tuple
 
 import matplotlib.pyplot as plt
 import pandas as pd
+
+sys.path.append(str(Path(__file__).resolve().parents[1]/"src"))
 
 
 def pareto_front_min(df: pd.DataFrame, x: str, y: str) -> pd.DataFrame:
@@ -198,13 +201,17 @@ def main():
         raise RuntimeError(
             "No usable metrics_summary.json files found (missing recon_loss/kl_loss)."
         )
-    df = pd.DataFrame(rows)
-    df["recon_loss"] = pd.to_numeric(df["recon_loss"])
-    df["kl_loss"] = pd.to_numeric(df["kl_loss"])
-    df = df[df["kl_loss"] > kl_min].reset_index(drop=True)  # avoids posterior collapse
+    raw_df = pd.DataFrame(rows)
+    raw_df["recon_loss"] = pd.to_numeric(raw_df["recon_loss"])
+    raw_df["kl_loss"] = pd.to_numeric(raw_df["kl_loss"])
+    # Save raw grid
+    raw_df.to_csv(outdir / "grid_all_raw.csv", index=False)
+    # Filter only for Pareto
+    df = raw_df[raw_df["kl_loss"] > kl_min].reset_index(drop=True)
     if df.empty:
         raise RuntimeError(f"No runs left after filtering with kl_min={kl_min}")
     df.to_csv(outdir / "pareto_all.csv", index=False)
+
     front = pareto_front_min(df, x="kl_loss", y="recon_loss")
     front.to_csv(outdir / "pareto_front.csv", index=False)
     kidx, kdist = knee_point(front, x="kl_loss", y="recon_loss")
@@ -221,7 +228,7 @@ def main():
     pd.DataFrame([sweet.to_dict()]).to_csv(outdir / "sweet_spot.csv", index=False)
 
     plot_pareto(df, front, sweet, outdir, kl_min)
-    plot_heatmaps(df, outdir)
+    plot_heatmaps(raw_df, outdir)
     print("Wrote:")
     print(outdir / "pareto_all.csv")
     print(outdir / "pareto_front.csv")

@@ -12,6 +12,7 @@ import argparse
 import json
 from datetime import datetime
 from pathlib import Path
+import sys
 
 import lightning as L
 from datasets import load_dataset
@@ -20,6 +21,10 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 from textvae.lit_module import LitTextVAE
+
+sys.path.append(str(Path(__file__).resolve().parents[1]/"src"))
+
+
 
 
 def main():
@@ -39,10 +44,12 @@ def main():
     parser.add_argument("--beta", type=float, default=1.0)
     parser.add_argument("--limit_val", type=int, default=500)
     parser.add_argument("--num_workers", type=int, default=2)
+    parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_id = f"ld{args.latent_dim}_b{args.beta}_{ts}"
+    L.seed_everything(args.seed, workers=True)
+    run_id = f"ld{args.latent_dim}_b{args.beta}_s{args.seed}_{ts}"
     run_dir = Path("runs") / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     run_cfg = {
@@ -55,6 +62,7 @@ def main():
         "lr": args.lr,
         "beta": args.beta,
         "limit_val": args.limit_val,
+        "seed": args.seed
     }
 
     (run_dir / "run_config.json").write_text(
