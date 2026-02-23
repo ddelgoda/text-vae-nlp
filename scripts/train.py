@@ -22,9 +22,7 @@ from transformers import AutoTokenizer
 
 from textvae.lit_module import LitTextVAE
 
-sys.path.append(str(Path(__file__).resolve().parents[1]/"src"))
-
-
+sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
 
 
 def main():
@@ -62,7 +60,7 @@ def main():
         "lr": args.lr,
         "beta": args.beta,
         "limit_val": args.limit_val,
-        "seed": args.seed
+        "seed": args.seed,
     }
 
     (run_dir / "run_config.json").write_text(

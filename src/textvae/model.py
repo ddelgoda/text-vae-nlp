@@ -152,7 +152,7 @@ class TextEmbeddingVAE(nn.Module):
         # --------------------------------------------------------
         self.to_hidden = nn.Sequential(
             nn.Linear(emb_dim, hidden_dim),
-            nn.ReLU(),    # derivative does not diminish the error signal like sigmoid
+            nn.ReLU(),  # derivative does not diminish the error signal like sigmoid
             nn.Dropout(p=0.1),  # 0.1 dropout to avoid memorisation
         )
         # Mean of latent Gaussian
@@ -175,7 +175,7 @@ class TextEmbeddingVAE(nn.Module):
         Reparameterisation trick.
         Instead of sampling:
             z ~ N(mu, sigma^2)
-        We rewrite as:
+        Rewrite as:
             z = mu + sigma * eps
             eps ~ N(0, I)
         This allows gradients to flow.
