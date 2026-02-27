@@ -40,9 +40,10 @@ def main():
     parser.add_argument("--freeze_transformer", action="store_true")
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--beta", type=float, default=1.0)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--limit_val", type=int, default=500)
     parser.add_argument("--num_workers", type=int, default=2)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--beta_warmup_epochs", type=int, default=0)
     args = parser.parse_args()
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -115,6 +116,7 @@ def main():
         freeze_transformer=args.freeze_transformer,
         lr=args.lr,
         beta=args.beta,
+        beta_warmup_epochs = args.beta_warmup_epochs,
         run_dir=str(run_dir),
     )
 

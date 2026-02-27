@@ -27,6 +27,8 @@ class LitTextVAE(L.LightningModule):
         freeze_transformer: bool = True,
         lr: float = 2e-4,
         beta: float = 1.0,
+        beta_warmup_epochs: int = 0,
+        kl_free_bits: float = 0.0, 
         run_dir: Optional[str] = None,
     ):
         super().__init__()
@@ -42,6 +44,9 @@ class LitTextVAE(L.LightningModule):
         self.lr = lr
         self.beta = beta
         self.run_dir = Path(run_dir) if run_dir else None
+        self.beta_warmup_epochs = beta_warmup_epochs
+        self.kl_free_bits = kl_free_bits
+
 
     @staticmethod
     def kl_diag_gaussian(mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
@@ -55,6 +60,16 @@ class LitTextVAE(L.LightningModule):
         kl = 0.5 * (torch.exp(logvar) + mu**2 - 1.0 - logvar)
         return kl.sum(dim=1).mean()
 
+    @staticmethod
+    def kl_diag_gaussian_per_sample(mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
+        """
+        Returns KL per sample (B,)
+        q(z|x)=N(mu, sigma^2), p(z)=N(0,I)
+        """
+        kl_per_dim = 0.5 * (torch.exp(logvar) + mu**2 - 1.0 - logvar)  # (B, Z)
+        kl_per_sample = kl_per_dim.sum(dim=1)  # (B,)
+        return kl_per_sample
+
     def training_step(self, batch, batch_idx):
         """
         One training step on one batch.
@@ -66,10 +81,22 @@ class LitTextVAE(L.LightningModule):
         )
         # Reconstruction loss (embedding space)
         recon_loss = F.mse_loss(out.recon_emb, out.emb)
-        # KL divergence loss
-        kl_loss = self.kl_diag_gaussian(out.mu, out.logvar)
+        # KL divergence loss per sample (B,)
+        kl_per_sample = self.kl_diag_gaussian_per_sample(out.mu, out.logvar)
+
+        # KL mean over batch for reporting
+        kl_raw = kl_per_sample.mean()
+
+        # Free-bits: only penalise KL above  a threshold
         # Total VAE loss
-        loss = recon_loss + self.beta * kl_loss
+        if self.beta_warmup_epochs>0:
+            warm = min(1.0, float(self.current_epoch+1)/float(self.beta_warmup_epochs),)
+            beta_eff = self.beta*warm
+        else:
+            beta_eff = self.beta
+        loss = recon_loss + beta_eff * kl_loss
+
+        self.log("train/beta_eff", beta_eff, prog_bar = True)
         # Log losses for progress bar / TensorBoard
         self.log_dict(
             {

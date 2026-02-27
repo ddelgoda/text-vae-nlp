@@ -14,6 +14,7 @@ from transformers import AutoTokenizer
 from textvae.lit_module import LitTextVAE
 
 
+
 @dataclass
 class SweetSpot:
     ckpt_path: str
@@ -127,8 +128,8 @@ def decode_from_mu(
     mu: (Z,) on CPU or GPU
     returns: recon_emb (D,) normalized on CPU
     """
-    mu = mu.to(device).unsqueeze(0)  # (1, Z)
-    recon = model.vae.decoder(mu).squeeze(0)  # (D,)
+    z = mu.to(device).unsqueeze(0)  # (1, Z)
+    recon = model.vae.decoder(z).squeeze(0)  # (D,)
     recon = F.normalize(recon, p=2, dim=0)
     return recon.detach().cpu()
 
@@ -185,3 +186,31 @@ def topk_nearest_texts(
     for idx, v in zip(idxs.tolist(), vals.tolist()):
         out.append((idx, float(v), corpus_texts[idx]))
     return out
+
+def find_ckpt_for_run(runs_root: str | Path, latent_dim: int, beta: float) -> str:
+   runs_root = Path(runs_root)
+   files = sorted(runs_root.rglob("metrics_summary.json"))
+   if not files:
+       raise FileNotFoundError(f"No metrics_summary.json found under {runs_root}")
+   # Match by latent_dim + beta (float-safe)
+   candidates = []
+   for fp in files:
+       d = json.loads(fp.read_text(encoding="utf-8"))
+       if int(d.get("latent_dim", -1)) != latent_dim:
+           continue
+       b = float(d.get("beta", float("nan")))
+       if abs(b - beta) > 1e-9:
+           continue
+       ckpt = d.get("best_model_path")
+       kl_val = float(d.get("kl_loss", float("nan")))
+       if ckpt and Path(ckpt).exists():
+           candidates.append((float(d.get("best_model_score", 1e18)), ckpt, kl_val))
+   if not candidates:
+       raise FileNotFoundError(
+           f"No checkpoint found for latent_dim={latent_dim}, beta={beta}. "
+           f"Did you train that combo?"
+       )
+   # lowest best_model_score is best
+   candidates.sort(key=lambda x: x[0])
+   _, ckpt_path, kl_val = candidates[0]
+   return ckpt_path, kl_val 

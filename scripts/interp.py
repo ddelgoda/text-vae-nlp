@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer
+from textvae.interp_utils import find_ckpt_for_run
+import torch.nn.functional as F
 
 # --- Ensure src/ is importable when running as a script ---
 
@@ -27,7 +29,8 @@ from textvae.interp_utils import (  # noqa: E402
 
 def cosine(a: torch.Tensor, b: torch.Tensor) -> float:
     """Cosine for already-normalized vectors (CPU tensors)."""
-
+    a = F.normalize(a, dim=0)
+    b = F.normalize(b, dim=0)
     return float((a * b).sum().item())
 
 
@@ -96,11 +99,38 @@ def write_pair_csv(
         for r in rows:
             w.writerow(r)
 
+def beta_tag(beta: float) -> str:
+   return str(beta).replace(".", "p")
+
+def append_geometry_master(outpath: Path, rows: List[List[object]]) -> None:
+   """
+   Appends per-pair geometry metrics for one run.
+   rows format:
+     [latent_dim, beta, pair_id, label_A, label_B, path_length, curvature_mean, cos_start, cos_end, KL_loss]
+   """
+   outpath.parent.mkdir(parents=True, exist_ok=True)
+   header = [
+       "latent_dim",
+       "beta",
+       "pair_id",
+       "label_A",
+       "label_B",
+       "path_length",
+       "curvature_mean",
+       "cos_start",
+       "cos_end",
+       "KL_loss"
+   ]
+   file_exists = outpath.exists()
+   with outpath.open("a", newline="", encoding="utf-8") as f:
+       w = csv.writer(f)
+       if not file_exists:
+           w.writerow(header)
+       w.writerows(rows)
 
 def main() -> None:
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--sweet_spot_json", type=str, default="artifacts/sweet_spot.json")
     ap.add_argument("--outdir", type=str, default="artifacts")
     ap.add_argument("--max_length", type=int, default=64)
     ap.add_argument("--corpus_size", type=int, default=2000)
@@ -109,6 +139,10 @@ def main() -> None:
     ap.add_argument("--topk", type=int, default=3)
     ap.add_argument("--steps", type=int, default=11)  # points between 0..1 inclusive
     ap.add_argument("--batch_size", type=int, default=32)
+    ap.add_argument("--runs_root", type=str, default="runs")
+    ap.add_argument("--latent_dim", type=int, default=16)
+    ap.add_argument("--beta", type=float, required=True)
+
     args = ap.parse_args()
 
     outdir = Path(args.outdir)
@@ -117,9 +151,17 @@ def main() -> None:
 
     # --- Load sweet spot + model ---
 
-    sweet = load_sweet_spot(args.sweet_spot_json)
-    tokenizer = AutoTokenizer.from_pretrained(sweet.model_name)
-    model = load_model_from_ckpt(sweet.ckpt_path, device=device)
+    # sweet = load_sweet_spot(args.sweet_spot_json)
+    # tokenizer = AutoTokenizer.from_pretrained(sweet.model_name)
+    # model = load_model_from_ckpt(sweet.ckpt_path, device=device)
+
+    ckpt_path, model_kl = find_ckpt_for_run(args.runs_root, args.latent_dim, args.beta)
+    model = load_model_from_ckpt(ckpt_path, device=device)
+    tokenizer = AutoTokenizer.from_pretrained(model.hparams.model_name)
+
+    print("beta", model.hparams.beta)
+    print("beta warmup", model.hparams.beta_warmup_epochs)
+    
 
     # --- Load dataset (validation/test split) ---
 
@@ -145,7 +187,7 @@ def main() -> None:
 
     ts = [i / (args.steps - 1) for i in range(args.steps)]
 
-
+    run_prefix=f"Id{args.latent_dim}_{beta_tag(args.beta)}"
     for pidx, (a, b) in enumerate(pairs, start=1):
         text_a = a["text"]
         text_b = b["text"]
@@ -170,19 +212,30 @@ def main() -> None:
             device=device,
         )
 
+
+
         cos_a_list: List[float] = []
         cos_b_list: List[float] = []
         csv_rows: List[List[object]] = []
 
         # Interpolate
 
+        E = []  # list of (D,) torch tensors on CPU
+
         for t in ts:
             mu_t = (1.0 - t) * mu_a + t * mu_b
             recon_t = decode_from_mu(model=model, mu=mu_t, device=device)
+            E.append(recon_t)
             c_a = cosine(recon_t, emb_a)
             c_b = cosine(recon_t, emb_b)
             cos_a_list.append(c_a)
             cos_b_list.append(c_b)
+
+
+            # print(cosine(E[0],emb_a))
+            # print(cosine(E[-1],emb_b))
+            # print(cosine(emb_a,emb_b))
+
 
             # Retrieval-based "readable decoding"
 
@@ -204,10 +257,33 @@ def main() -> None:
                         sanitize_one_line(nn_text, 320),
                     ]
                 )
+        cos_start = cosine(E[0], emb_a)
+        cos_end = cosine(E[-1], emb_b)
+        # Path length: sum ||E[i+1]-E[i]||
+        path_len = 0.0
+        for i in range(len(E) - 1):
+            path_len += float(torch.norm(E[i + 1] - E[i]).item())
+        # Curvature: mean ||E[i+1] - 2E[i] + E[i-1]||
+        curvs = []
+        for i in range(1, len(E) - 1):
+            c = torch.norm(E[i + 1] - 2 * E[i] + E[i - 1]).item()
+            curvs.append(float(c))
+        curv_mean = sum(curvs) / max(1, len(curvs))
+
+        deltas=[torch.norm(E[i+1]-E[i]).item() for i in range(len(E)-1)]
+        print(len(E))
+        print(min(deltas), sum(deltas)/len(deltas), max(deltas))
+        print(sum(deltas))
+
+        print(mu_a.norm().item())
+        print(mu_b.norm().item())
+        print((mu_a-mu_b).norm().item())
+        print(cos_start)
+        print(cos_end)
 
         # Write per-pair CSV
 
-        pair_csv = outdir / f"latent_interp_pair{pidx:02d}.csv"
+        pair_csv = outdir / f"{run_prefix}_pair{pidx:02d}.csv"
 
         write_pair_csv(
             outpath=pair_csv,
@@ -221,11 +297,17 @@ def main() -> None:
 
         # Plot curves
 
-        plot_path = outdir / f"latent_interp_pair{pidx:02d}.png"
+        plot_path = outdir / f"{run_prefix}_pair{pidx:02d}.png"
         title = f"Latent interpolation (pair {pidx}): label {lab_a} → {lab_b}"
         plot_cos_curves(ts, cos_a_list, cos_b_list, plot_path, title)
-        print(pair_csv)
-        print(plot_path)
+        geom_csv=outdir / f"phase2_1_geometry_summary.csv"
+        geom_rows:list[list[object]]=[]
+        geom_rows.append([args.latent_dim, args.beta, pidx, lab_a, lab_b, path_len, curv_mean, cos_start, cos_end, model_kl])
+        append_geometry_master(
+            geom_csv,geom_rows
+        )
+
+
 
 
 if __name__ == "__main__":
