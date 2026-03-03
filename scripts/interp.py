@@ -12,26 +12,30 @@ from textvae.interp_utils import find_ckpt_for_run
 import torch.nn.functional as F
 
 # --- Ensure src/ is importable when running as a script ---
-
 ROOT = Path(__file__).resolve().parents[1]  # repo root
 sys.path.insert(0, str(ROOT / "src"))
 
 from textvae.interp_utils import (  # noqa: E402
-    decode_from_mu,
-    embed_texts,
-    encode_to_emb_and_mu,
-    load_model_from_ckpt,
-    load_sweet_spot,
-    sample_pairs_different_labels,
-    topk_nearest_texts,
-)
+        decode_from_mu,
+        embed_texts,
+        encode_to_emb_and_mu,
+        load_model_from_ckpt,
+        load_sweet_spot,
+        sample_pairs_different_labels,
+        topk_nearest_texts,
+        cosine,
+    )
 
+def resolve_ckpt(run_dir: Path)->Path:
 
-def cosine(a: torch.Tensor, b: torch.Tensor) -> float:
-    """Cosine for already-normalized vectors (CPU tensors)."""
-    a = F.normalize(a, dim=0)
-    b = F.normalize(b, dim=0)
-    return float((a * b).sum().item())
+    best = run_dir / "checkpoints"/ "best.ckpt"
+    if best.exists():
+        return best
+    last = run_dir / "checkpoints"/ "last.ckpt"
+    if last.exists():
+        return last
+    raise FileNotFoundError(f"No checkpoint found under: {run_dir}/checkpoints")
+
 
 
 def plot_cos_curves(
@@ -139,7 +143,7 @@ def main() -> None:
     ap.add_argument("--topk", type=int, default=3)
     ap.add_argument("--steps", type=int, default=11)  # points between 0..1 inclusive
     ap.add_argument("--batch_size", type=int, default=32)
-    ap.add_argument("--runs_root", type=str, default="runs")
+    ap.add_argument("--run_dir", type=str, default="runs")
     ap.add_argument("--latent_dim", type=int, default=16)
     ap.add_argument("--beta", type=float, required=True)
 
@@ -155,7 +159,7 @@ def main() -> None:
     # tokenizer = AutoTokenizer.from_pretrained(sweet.model_name)
     # model = load_model_from_ckpt(sweet.ckpt_path, device=device)
 
-    ckpt_path, model_kl = find_ckpt_for_run(args.runs_root, args.latent_dim, args.beta)
+    ckpt_path, model_kl = find_ckpt_for_run(args.run_dir, args.latent_dim, args.beta)
     model = load_model_from_ckpt(ckpt_path, device=device)
     tokenizer = AutoTokenizer.from_pretrained(model.hparams.model_name)
 
@@ -176,11 +180,14 @@ def main() -> None:
         max_length=args.max_length,
         device=device,
         batch_size=args.batch_size,
-    )  # (N, D) normalized CPU tensor
-
+        )
+  
     # --- Sample A/B pairs from different labels ---
+    from collections import Counter
+    labs = [int(x) for x in ds_corpus["label"]]
+    print("label counts", Counter(labs))
 
-    pairs = sample_pairs_different_labels(ds, num_pairs=args.pairs, seed=args.seed)
+    pairs = sample_pairs_different_labels(ds=ds_corpus, num_pairs=args.pairs, seed=args.seed, max_cos_sim=None, corpus_embs = corpus_embs)
 
     if args.steps < 2:
         raise ValueError("--steps must be >= 2")
@@ -213,7 +220,6 @@ def main() -> None:
         )
 
 
-
         cos_a_list: List[float] = []
         cos_b_list: List[float] = []
         csv_rows: List[List[object]] = []
@@ -230,12 +236,6 @@ def main() -> None:
             c_b = cosine(recon_t, emb_b)
             cos_a_list.append(c_a)
             cos_b_list.append(c_b)
-
-
-            # print(cosine(E[0],emb_a))
-            # print(cosine(E[-1],emb_b))
-            # print(cosine(emb_a,emb_b))
-
 
             # Retrieval-based "readable decoding"
 
@@ -280,6 +280,9 @@ def main() -> None:
         print((mu_a-mu_b).norm().item())
         print(cos_start)
         print(cos_end)
+        print(torch.norm(E[0]-emb_a))
+        print(torch.norm(E[-1]-emb_b))
+        print("cos", cosine(emb_a,emb_b))
 
         # Write per-pair CSV
 

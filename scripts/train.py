@@ -43,7 +43,8 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--limit_val", type=int, default=500)
     parser.add_argument("--num_workers", type=int, default=2)
-    parser.add_argument("--beta_warmup_epochs", type=int, default=0)
+    parser.add_argument("--beta_warmup_epochs", type=int, default=5)
+    parser.add_argument("--kl_free_bits", type=float, default=0.5)
     args = parser.parse_args()
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -62,6 +63,7 @@ def main():
         "beta": args.beta,
         "limit_val": args.limit_val,
         "seed": args.seed,
+        "kl_free_bits": args.kl_free_bits,
     }
 
     (run_dir / "run_config.json").write_text(
@@ -100,6 +102,9 @@ def main():
         num_workers=args.num_workers,
         persistent_workers=(args.num_workers > 0),
     )
+
+    batch = next (iter(train_loader))
+
     val_loader = DataLoader(
         val_ds,
         batch_size=args.batch_size,
@@ -117,6 +122,7 @@ def main():
         lr=args.lr,
         beta=args.beta,
         beta_warmup_epochs = args.beta_warmup_epochs,
+        kl_free_bits = args.kl_free_bits,
         run_dir=str(run_dir),
     )
 

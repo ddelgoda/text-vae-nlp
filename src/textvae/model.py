@@ -76,7 +76,9 @@ class TransformerEmbeddingEncoder(nn.Module):
         Output:
             emb            : (B, D) sentence embedding
         """
+
         # If frozen, do not track gradients
+
         if self.freeze:
             with torch.no_grad():
                 out = self.model(input_ids=input_ids, attention_mask=attention_mask)
@@ -86,6 +88,7 @@ class TransformerEmbeddingEncoder(nn.Module):
         last_hidden = out.last_hidden_state  # (B, T, H)
         # Collapse tokens → sentence embedding
         emb = self.mean_pool(last_hidden, attention_mask)  # (B, H)
+
         return emb
 
 
