@@ -12,7 +12,6 @@ import argparse
 import json
 from datetime import datetime
 from pathlib import Path
-import sys
 
 import lightning as L
 from datasets import load_dataset
@@ -22,13 +21,8 @@ from transformers import AutoTokenizer
 
 from textvae.lit_module import LitTextVAE
 
-sys.path.append(str(Path(__file__).resolve().parents[1]/"src"))
-
-
-
 
 def main():
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_name", default="sentence-transformers/all-MiniLM-L6-v2"
