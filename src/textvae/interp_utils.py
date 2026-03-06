@@ -59,6 +59,55 @@ def load_model_from_ckpt(ckpt_path: str, device: torch.device) -> LitTextVAE:
         model.vae.encoder.model.eval()
     return model
 
+def path_geometry(E: List[torch.Tensor]) -> Dict[str, float]:
+    """
+    E: list of (D,) CPU tensors (ideally normalized)
+    returns: path_len, curv_mean, curv_sum, delta_mean
+    """
+    if len(E) < 2:
+        return {"path_len": 0.0, "curv_mean": 0.0, "curv_sum": 0.0, "delta_mean": 0.0}
+
+    deltas = []
+    for i in range(len(E) - 1):
+        deltas.append(float(torch.norm(E[i + 1] - E[i]).item()))
+    path_len = float(sum(deltas))
+    delta_mean = float(sum(deltas) / len(deltas))
+
+    if len(E) < 3:
+        return {"path_len": path_len, "curv_mean": 0.0, "curv_sum": 0.0, "delta_mean": delta_mean}
+
+    curvs = []
+    for i in range(1, len(E) - 1):
+        curvs.append(float(torch.norm(E[i + 1] - 2 * E[i] + E[i - 1]).item()))
+    curv_sum = float(sum(curvs))
+    curv_mean = float(curv_sum / len(curvs))
+
+    return {"path_len": path_len, "curv_mean": curv_mean, "curv_sum": curv_sum, "delta_mean": delta_mean}
+
+def curvature_ratios(
+    geom_lat: Dict[str, float],
+    geom_emb: Dict[str, float],
+    eps: float = 1e-6,
+    cap: float = 1e4,
+    ) -> Dict[str, float]:
+    """
+    Ratios relative to embedding-linear baseline.
+    eps prevents division by ~0.
+    cap prevents exploding values from dominating plots/tables.
+    """
+    path_ratio = geom_lat["path_len"] / max(geom_emb["path_len"], eps)
+    curv_ratio = geom_lat["curv_mean"] / max(geom_emb["curv_mean"], eps)
+
+    path_ratio_capped = min(path_ratio, cap)
+    curv_ratio_capped = min(curv_ratio, cap)
+
+    return {
+        "path_ratio": float(path_ratio),
+        "curv_ratio_mean": float(curv_ratio),
+        "path_ratio_capped": float(path_ratio_capped),
+        "curv_ratio_mean_capped": float(curv_ratio_capped),
+    }
+
 
 
 @torch.no_grad()
@@ -122,8 +171,35 @@ def encode_to_emb_and_mu(
     out = model.vae(input_ids=input_ids, attention_mask=attention_mask)
     emb = F.normalize(out.emb.squeeze(0), p=2, dim=0)
     mu = out.mu.squeeze(0)
-    return emb.detach().cpu(), mu.detach().cpu()
+    logvar = out.logvar.squeeze(0)
+    return emb.cpu(), mu.cpu(), logvar.cpu()
 
+@torch.no_grad()
+def decode_from_mu_logvar_sampled(
+    model: LitTextVAE,
+    mu: torch.Tensor,
+    logvar: torch.Tensor,
+    device: torch.device,
+    n_samples: int = 8,
+) -> torch.Tensor:
+    """
+    Returns normalized recon embedding (D,) on CPU using Monte Carlo sampling.
+    """
+    mu = mu.to(device)
+    logvar = logvar.to(device)
+    std = torch.exp(0.5 * logvar)
+
+    outs = []
+    for _ in range(n_samples):
+        eps = torch.randn_like(std)
+        z = mu + std * eps
+        recon = model.vae.decoder(z.unsqueeze(0)).squeeze(0)
+        recon = F.normalize(recon, p=2, dim=0)
+        outs.append(recon)
+
+    recon_mean = torch.stack(outs, dim=0).mean(dim=0)
+    recon_mean = F.normalize(recon_mean, p=2, dim=0)
+    return recon_mean.detach().cpu()
 
 @torch.no_grad()
 def decode_from_mu(
@@ -144,88 +220,105 @@ def cosine(a: torch.Tensor, b: torch.Tensor) -> float:
     b = F.normalize(b, p=2, dim=0)
     return float((a * b).sum().item())
     
-def sample_pairs_different_labels(
+def sample_pairs_sts_low_cos(
     ds: Dataset,
     num_pairs: int,
     seed: int,
-    min_len: int = 20,
-    max_cos_sim: float | None = 0.95,
-    # If you pass these, we can filter out "too similar" pairs reliably:
-    corpus_embs: torch.Tensor | None = None, # (N, D) normalized
-    ) -> List[Tuple[Dict, Dict]]:
+    sim_min: float = 0.0,
+    sim_max: float = 2.0,
+    min_len: int = 1,
+    pool_size: int = 2000,
+    batch_size: int = 32,
+    # optional deps (can be defaulted)
+    model: Optional["LitTextVAE"] = None,
+    tokenizer: Optional[AutoTokenizer] = None,
+    model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    max_length: int = 128,
+    device: Optional[torch.device] = None,
+    ) -> List[Tuple[str, str, float, float]]:
     """
-    Samples sentence pairs (A, B) where labels differ.
+    Returns (s1, s2, sim_score, cos_emb) for the lowest-cosine pairs
+    among candidates within [sim_min, sim_max].
 
-    If corpus_embs is provided (shape (N, D)), also enforces that
-    cosine(corpus_embs[a_idx], corpus_embs[b_idx]) <= max_cos_sim
-    to avoid trivial pairs that are nearly identical in embedding space.
-
-    Returns list of dict rows with keys: text, label (AG News format).
+    Requires embeddings; if model/tokenizer/device are not provided,
+    uses defaults (model must be provided OR you must load it before calling).
     """
-    rng = random.Random(seed)
 
-    # Group valid indices by label
-    by_label: Dict[int, List[int]] = {}
-    valid_idxs: List[int] = []
-    for i in range(len(ds)):
-        row = ds[i]
-        txt = row.get("text", "")
-        if not isinstance(txt, str) or len(txt) < min_len:
-            continue
-        lab = int(row["label"])
-        by_label.setdefault(lab, []).append(i)
-        valid_idxs.append(i)
+    # ---- defaults ----
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    labels = sorted(by_label.keys())
-    if len(labels) < 2:
-        raise RuntimeError("Need at least 2 labels to sample different-label pairs.")
+    if tokenizer is None:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    # If we want cosine filtering, we need embeddings
-    use_cos_filter = max_cos_sim is not None and corpus_embs is not None
-    if use_cos_filter and corpus_embs.dim() != 2:
-        raise ValueError("corpus_embs must be a 2D tensor of shape (N, D).")
-
-    pairs: List[Tuple[Dict, Dict]] = []
-    used: set[tuple[int, int]] = set()
-
-    # Try multiple attempts to satisfy constraints
-    max_tries = max(200, num_pairs * 200)
-    tries = 0
-
-    while len(pairs) < num_pairs and tries < max_tries:
-        tries += 1
-
-        a_lab = rng.choice(labels)
-        b_lab = rng.choice([l for l in labels if l != a_lab])
-
-        a_idx = rng.choice(by_label[a_lab])
-        b_idx = rng.choice(by_label[b_lab])
-
-        key = (a_idx, b_idx)
-        if key in used:
-            continue
-
-        # Optional: avoid trivial nearly-identical pairs in embedding space
-        if use_cos_filter:
-            ca = corpus_embs[a_idx]
-            cb = corpus_embs[b_idx]
-            cos_ab = cosine(ca, cb)
-            if cos_ab > float(max_cos_sim):
-                continue
-
-        used.add(key)
-        pairs.append((ds[a_idx], ds[b_idx]))
-
-    if len(pairs) < num_pairs:
-        msg = (
-            f"Only sampled {len(pairs)}/{num_pairs} different-label pairs "
-            f"after {tries} tries."
+    if model is None:
+        raise ValueError(
+            "sample_pairs_sts_low_cos requires `model` (LitTextVAE) to embed texts. "
+            "Pass model=... (loaded from your checkpoint)."
         )
-        if max_cos_sim is not None and corpus_embs is None:
-            msg += " (Tip: pass corpus_embs to enable max_cos_sim filtering.)"
-        raise RuntimeError(msg)
 
-    return pairs
+    rng = random.Random(seed)
+    idxs = list(range(len(ds)))
+    rng.shuffle(idxs)
+
+    # ---- candidate collection ----
+    cands: List[Tuple[str, str, float]] = []
+    for i in idxs:
+        row = ds[i]
+        s1 = row.get("sentence1", "")
+        s2 = row.get("sentence2", "")
+        if not isinstance(s1, str) or not isinstance(s2, str):
+            continue
+        if len(s1) < min_len or len(s2) < min_len:
+            continue
+
+        s1_clean = " ".join(s1.split())
+        s2_clean = " ".join(s2.split())
+        if s1_clean == s2_clean:
+            continue
+
+        s = float(row["similarity_score"])
+        if sim_min <= s <= sim_max:
+            cands.append((s1, s2, s))
+            if len(cands) >= pool_size:
+                break
+
+    if not cands:
+        raise RuntimeError(
+            f"No candidate pairs found in sim range [{sim_min}, {sim_max}]"
+        )
+
+    # ---- embed endpoints ----
+    s1s = [c[0] for c in cands]
+    s2s = [c[1] for c in cands]
+
+    emb1 = embed_texts(
+    model=model,
+    tokenizer=tokenizer,
+    texts=s1s,
+    max_length=max_length,
+    device=device,
+    batch_size=batch_size,
+    )
+    emb2 = embed_texts(
+    model=model,
+    tokenizer=tokenizer,
+    texts=s2s,
+    max_length=max_length,
+    device=device,
+    batch_size=batch_size,
+    )
+
+    # ---- cosine scoring ----
+    scored: List[Tuple[float, str, str, float]] = []
+    for (s1, s2, sim_score), e1, e2 in zip(cands, emb1, emb2):
+        cos12 = cosine(e1, e2)
+        scored.append((cos12, s1, s2, sim_score))
+
+    scored.sort(key=lambda x: x[0]) # lowest cosine first
+    picked = scored[:num_pairs]
+
+    return [(s1, s2, sim_score, cos12) for (cos12, s1, s2, sim_score) in picked]
 
 
 @torch.no_grad()
@@ -277,7 +370,10 @@ def find_ckpt_for_run(runs_dir: str | Path, latent_dim: int, beta: float) -> tup
         ckpt = d.get("best_model_path") or d.get("last_model_path")
         kl_val = float(d.get("kl_loss", float("nan")))
         if ckpt and Path(ckpt).exists():
-            candidates.append((float(d.get("best_model_score", 1e18)), ckpt, kl_val))
+            #candidates.append((float(d.get("last_model_score", 1e18)), ckpt, kl_val))
+            ckpt_path = Path(ckpt)
+            candidates.append((ckpt_path.stat().st_mtime, ckpt, kl_val))
+            candidates.sort(key=lambda x: x[0], reverse=True) # newest first
     if not candidates:
         raise FileNotFoundError(
             f"No checkpoint found for latent_dim={latent_dim}, beta={beta}. "

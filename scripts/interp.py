@@ -21,9 +21,12 @@ from textvae.interp_utils import (  # noqa: E402
         encode_to_emb_and_mu,
         load_model_from_ckpt,
         load_sweet_spot,
-        sample_pairs_different_labels,
+        sample_pairs_sts_low_cos,
         topk_nearest_texts,
         cosine,
+        decode_from_mu_logvar_sampled,
+        path_geometry,
+        curvature_ratios
     )
 
 def resolve_ckpt(run_dir: Path)->Path:
@@ -65,8 +68,7 @@ def sanitize_one_line(s: str, max_chars: int) -> str:
 def write_pair_csv(
     outpath: Path,
     pair_id: int,
-    lab_a: int,
-    lab_b: int,
+    sim_score: float,
     text_a: str,
     text_b: str,
     rows: List[List[object]],
@@ -90,8 +92,6 @@ def write_pair_csv(
         w.writerow(
             [
                 pair_id,
-                lab_a,
-                lab_b,
                 sanitize_one_line(text_a, 600),
                 sanitize_one_line(text_b, 600),
             ]
@@ -114,17 +114,23 @@ def append_geometry_master(outpath: Path, rows: List[List[object]]) -> None:
    """
    outpath.parent.mkdir(parents=True, exist_ok=True)
    header = [
-       "latent_dim",
-       "beta",
-       "pair_id",
-       "label_A",
-       "label_B",
-       "path_length",
-       "curvature_mean",
-       "cos_start",
-       "cos_end",
-       "KL_loss"
-   ]
+        "latent_dim",
+        "beta",
+        "pair_id",
+        "sts_similarity",
+        "cos_ab",
+        "cos_start",
+        "cos_end",
+        "model_kl",
+        "path_len_lat",
+        "curv_mean_lat",
+        "path_len_emb",
+        "curv_mean_emb",
+        "path_ratio",
+        "curv_ratio_mean",
+        "path_ratio_capped",
+        "curv_ratio_mean_capped",
+        ]
    file_exists = outpath.exists()
    with outpath.open("a", newline="", encoding="utf-8") as f:
        w = csv.writer(f)
@@ -136,9 +142,9 @@ def main() -> None:
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--outdir", type=str, default="artifacts")
-    ap.add_argument("--max_length", type=int, default=64)
+    ap.add_argument("--max_length", type=int, default=128)
     ap.add_argument("--corpus_size", type=int, default=2000)
-    ap.add_argument("--pairs", type=int, default=3)
+    ap.add_argument("--num_pairs", type=int, default=3)
     ap.add_argument("--seed", type=int, default=123)
     ap.add_argument("--topk", type=int, default=3)
     ap.add_argument("--steps", type=int, default=11)  # points between 0..1 inclusive
@@ -146,6 +152,9 @@ def main() -> None:
     ap.add_argument("--run_dir", type=str, default="runs")
     ap.add_argument("--latent_dim", type=int, default=16)
     ap.add_argument("--beta", type=float, required=True)
+    ap.add_argument("--sim_min", type=float, default=0.0)
+    ap.add_argument("--sim_max", type=float, default=2.0)
+    ap.add_argument("--min_len", type=float, default=10.0)
 
     args = ap.parse_args()
 
@@ -169,9 +178,10 @@ def main() -> None:
 
     # --- Load dataset (validation/test split) ---
 
-    ds = load_dataset("ag_news")["test"]
-    ds_corpus = ds.select(range(min(args.corpus_size, len(ds))))
-    corpus_texts: List[str] = list(ds_corpus["text"])
+    ds = load_dataset("stsb_multi_mt", name = "en")
+    ds_corpus = ds["train"].select(range(min(args.corpus_size, len(ds))))
+    ds_pairs = ds["dev"]
+    corpus_texts = list(ds_corpus["sentence1"])+list(ds_corpus["sentence2"])
 
     corpus_embs = embed_texts(
         model=model,
@@ -183,11 +193,25 @@ def main() -> None:
         )
   
     # --- Sample A/B pairs from different labels ---
-    from collections import Counter
-    labs = [int(x) for x in ds_corpus["label"]]
-    print("label counts", Counter(labs))
 
-    pairs = sample_pairs_different_labels(ds=ds_corpus, num_pairs=args.pairs, seed=args.seed, max_cos_sim=None, corpus_embs = corpus_embs)
+    pairs = sample_pairs_sts_low_cos(
+        ds=ds_pairs, # e.g. ds["dev"]
+        num_pairs=args.num_pairs,
+        seed=args.seed,
+        sim_min=args.sim_min,
+        sim_max=args.sim_max,
+        pool_size=5000,
+        batch_size=args.batch_size,
+        model=model,
+        tokenizer=tokenizer,
+        max_length=64,
+        device=device,
+        )
+
+    #pairs = sample_pairs_different_labels(ds=ds_corpus, num_pairs=args.num_pairs, seed=args.seed, \
+                                #sim_min=args.sim_min, sim_max=args.sim_max, min_len =args.min_len)
+
+
 
     if args.steps < 2:
         raise ValueError("--steps must be >= 2")
@@ -195,15 +219,12 @@ def main() -> None:
     ts = [i / (args.steps - 1) for i in range(args.steps)]
 
     run_prefix=f"Id{args.latent_dim}_{beta_tag(args.beta)}"
-    for pidx, (a, b) in enumerate(pairs, start=1):
-        text_a = a["text"]
-        text_b = b["text"]
-        lab_a = int(a["label"])
-        lab_b = int(b["label"])
+    for pidx, (text_a, text_b, sim_score, cos_ab) in enumerate(pairs, start=1):
+        print(f"\nPair {pidx} | STS similarity = {sim_score:.2f}")
 
         # Encode endpoints
 
-        emb_a, mu_a = encode_to_emb_and_mu(
+        emb_a, mu_a, logvar_a = encode_to_emb_and_mu(
             model=model,
             tokenizer=tokenizer,
             text=text_a,
@@ -211,7 +232,7 @@ def main() -> None:
             device=device,
         )
 
-        emb_b, mu_b = encode_to_emb_and_mu(
+        emb_b, mu_b, logvar_b = encode_to_emb_and_mu(
             model=model,
             tokenizer=tokenizer,
             text=text_b,
@@ -229,8 +250,9 @@ def main() -> None:
         E = []  # list of (D,) torch tensors on CPU
 
         for t in ts:
-            mu_t = (1.0 - t) * mu_a + t * mu_b
-            recon_t = decode_from_mu(model=model, mu=mu_t, device=device)
+            mu_t = (1 - t) * mu_a + t * mu_b
+            logvar_t = (1 - t) * logvar_a + t * logvar_b
+            recon_t = decode_from_mu_logvar_sampled(model, mu_t, logvar_t, device, n_samples=8)
             E.append(recon_t)
             c_a = cosine(recon_t, emb_a)
             c_b = cosine(recon_t, emb_b)
@@ -257,6 +279,12 @@ def main() -> None:
                         sanitize_one_line(nn_text, 320),
                     ]
                 )
+
+        E_emb = []
+        for t in ts:
+            e = (1.0 - t) * emb_a + t * emb_b
+            e = torch.nn.functional.normalize(e, p=2, dim=0)
+            E_emb.append(e)
         cos_start = cosine(E[0], emb_a)
         cos_end = cosine(E[-1], emb_b)
         # Path length: sum ||E[i+1]-E[i]||
@@ -270,19 +298,38 @@ def main() -> None:
             curvs.append(float(c))
         curv_mean = sum(curvs) / max(1, len(curvs))
 
+
         deltas=[torch.norm(E[i+1]-E[i]).item() for i in range(len(E)-1)]
+
+        geom_lat = path_geometry(E) # E is your latent-decoded list
+        geom_emb = path_geometry(E_emb)
+
+        ratios = curvature_ratios(geom_lat, geom_emb)
+
+        path_len = geom_lat["path_len"]
+        curv_mean = geom_lat["curv_mean"]
+
+        path_len_emb = geom_emb["path_len"]
+        curv_mean_emb = geom_emb["curv_mean"]
+
+        path_ratio = ratios["path_ratio"]
+        curv_ratio = ratios["curv_ratio_mean"]
+        path_ratio_cap = ratios["path_ratio_capped"]
+        curv_ratio_cap = ratios["curv_ratio_mean_capped"]
+
         print(len(E))
         print(min(deltas), sum(deltas)/len(deltas), max(deltas))
         print(sum(deltas))
+        cosab=cosine(emb_a,emb_b)
 
         print(mu_a.norm().item())
         print(mu_b.norm().item())
         print((mu_a-mu_b).norm().item())
         print(cos_start)
         print(cos_end)
-        print(torch.norm(E[0]-emb_a))
-        print(torch.norm(E[-1]-emb_b))
-        print("cos", cosine(emb_a,emb_b))
+        print("l2start", torch.norm(E[0]-emb_a).item())
+        print("l2end", torch.norm(E[-1]-emb_b).item())
+        print("cosab", cosab)
 
         # Write per-pair CSV
 
@@ -291,8 +338,7 @@ def main() -> None:
         write_pair_csv(
             outpath=pair_csv,
             pair_id=pidx,
-            lab_a=lab_a,
-            lab_b=lab_b,
+            sim_score=sim_score,
             text_a=text_a,
             text_b=text_b,
             rows=csv_rows,
@@ -301,11 +347,28 @@ def main() -> None:
         # Plot curves
 
         plot_path = outdir / f"{run_prefix}_pair{pidx:02d}.png"
-        title = f"Latent interpolation (pair {pidx}): label {lab_a} → {lab_b}"
+        title = f"Latent interpolation (pair {pidx})|" f"STS similarity = {sim_score:.2f}"
         plot_cos_curves(ts, cos_a_list, cos_b_list, plot_path, title)
         geom_csv=outdir / f"phase2_1_geometry_summary.csv"
         geom_rows:list[list[object]]=[]
-        geom_rows.append([args.latent_dim, args.beta, pidx, lab_a, lab_b, path_len, curv_mean, cos_start, cos_end, model_kl])
+        geom_rows.append([
+            args.latent_dim,
+            args.beta,
+            pidx,
+            sim_score,
+            cosab,
+            cos_start,
+            cos_end,
+            model_kl,
+            path_len,
+            curv_mean,
+            path_len_emb,
+            curv_mean_emb,
+            path_ratio,
+            curv_ratio,
+            path_ratio_cap,
+            curv_ratio_cap,
+            ])
         append_geometry_master(
             geom_csv,geom_rows
         )

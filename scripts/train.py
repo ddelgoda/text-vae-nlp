@@ -31,7 +31,7 @@ def main():
     parser.add_argument(
         "--model_name", default="sentence-transformers/all-MiniLM-L6-v2"
     )
-    parser.add_argument("--max_length", type=int, default=64)
+    parser.add_argument("--max_length", type=int, default=128)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--max_epochs", type=int, default=5)
     parser.add_argument("--limit_train", type=int, default=1000)
@@ -74,7 +74,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
     # Load a simple public dataset (news headlines)
-    ds = load_dataset("ag_news")
+    ds = load_dataset("stsb_multi_mt", name = "en")
     train_ds = ds["train"]
     val_ds = ds["test"]
 
@@ -83,7 +83,7 @@ def main():
 
     def tokenize(batch):
         return tokenizer(
-            batch["text"],
+            batch["sentence1"],
             truncation=True,
             padding="max_length",
             max_length=args.max_length,
@@ -128,10 +128,10 @@ def main():
 
     ckpt_cb = ModelCheckpoint(
         dirpath=str(run_dir / "checkpoints"),
-        filename="best",
+        filename="last",
         monitor="val/total_loss",
         mode="min",
-        save_top_k=1,
+        save_top_k=0,
         save_last=True,
     )
 
@@ -140,8 +140,10 @@ def main():
         accelerator="auto",
         devices="auto",
         log_every_n_steps=10,
+        num_sanity_val_steps=0,
         default_root_dir=str(run_dir),
         callbacks=[ckpt_cb],
+        enable_checkpointing=True,
     )
 
     trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
