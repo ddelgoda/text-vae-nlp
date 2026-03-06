@@ -3,16 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import List, Tuple
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
-
-
 def pareto_front_min(df: pd.DataFrame, x: str, y: str) -> pd.DataFrame:
     sdf = df.sort_values([x, y], ascending=[True, True]).reset_index(drop=True)
     keep = []

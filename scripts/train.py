@@ -10,9 +10,9 @@
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
-import sys
 
 import lightning as L
 from datasets import load_dataset
@@ -102,8 +102,6 @@ def main():
         num_workers=args.num_workers,
         persistent_workers=(args.num_workers > 0),
     )
-
-    batch = next (iter(train_loader))
 
     val_loader = DataLoader(
         val_ds,

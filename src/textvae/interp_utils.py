@@ -4,19 +4,16 @@ import json
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import torch
 import torch.nn.functional as F
 from datasets import Dataset
 from transformers import AutoTokenizer
-from typing import Tuple
 
 from textvae.lit_module import LitTextVAE
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-
-
 
 @dataclass
 class SweetSpot:
@@ -219,7 +216,7 @@ def cosine(a: torch.Tensor, b: torch.Tensor) -> float:
     a = F.normalize(a, p=2, dim=0)
     b = F.normalize(b, p=2, dim=0)
     return float((a * b).sum().item())
-    
+
 def sample_pairs_sts_low_cos(
     ds: Dataset,
     num_pairs: int,
@@ -321,24 +318,6 @@ def sample_pairs_sts_low_cos(
     return [(s1, s2, sim_score, cos12) for (cos12, s1, s2, sim_score) in picked]
 
 
-@torch.no_grad()
-def topk_nearest_texts_old(
-    query_emb: torch.Tensor,  # (D,) normalized on CPU
-    corpus_embs: torch.Tensor,  # (N, D) normalized on CPU
-    corpus_texts: Sequence[str],
-    k: int = 3,
-) -> List[Tuple[int, float, str]]:
-    """
-    Returns [(idx, cosine, text), ...] top-k by cosine similarity.
-    """
-    q = query_emb.unsqueeze(0)  # (1, D)
-    sims = (q @ corpus_embs.T).squeeze(0)  # (N,)
-    vals, idxs = torch.topk(sims, k=min(k, sims.numel()))
-    out: List[Tuple[int, float, str]] = []
-    for idx, v in zip(idxs.tolist(), vals.tolist()):
-        out.append((idx, float(v), corpus_texts[idx]))
-    return out
-
 def topk_nearest_texts(
     query_emb: torch.Tensor,
     corpus_embs: torch.Tensor,
@@ -383,13 +362,10 @@ def find_ckpt_for_run(runs_dir: str | Path, latent_dim: int, beta: float) -> tup
 
     if not runs_dir.is_absolute():
         runs_dir = (PROJECT_ROOT/runs_dir).resolve()
-        print("run_dir", runs_dir)
-    
 
     # if user passed a single run dir, shortcut
     ms=runs_dir/"metrics_summary.json"
-    print("ms", ms)
-    
+
     if ms.exists():
         files=[ms]
     else:
@@ -421,4 +397,4 @@ def find_ckpt_for_run(runs_dir: str | Path, latent_dim: int, beta: float) -> tup
     # lowest best_model_score is best
     candidates.sort(key=lambda x: x[0])
     _, ckpt_path, kl_val = candidates[0]
-    return ckpt_path, kl_val 
+    return ckpt_path, kl_val
