@@ -4,13 +4,10 @@ import argparse
 import json
 import math
 from pathlib import Path
-import sys
 from typing import List, Tuple
 
 import matplotlib.pyplot as plt
 import pandas as pd
-
-sys.path.append(str(Path(__file__).resolve().parents[1]/"src"))
 
 
 def pareto_front_min(df: pd.DataFrame, x: str, y: str) -> pd.DataFrame:
@@ -123,7 +120,7 @@ def plot_pareto(df, front, sweet, outdir, kl_min:float):
     plt.close()
 
 def plot_heatmaps(df: pd.DataFrame, outdir: Path) -> None:
-    
+
     required = {"latent_dim", "beta", "recon_loss", "kl_loss"}
     if not required.issubset(df.columns):
         print(f"Skipping heatmaps: missing columns {required - set(df.columns)}")
@@ -214,7 +211,7 @@ def main():
 
     front = pareto_front_min(df, x="kl_loss", y="recon_loss")
     front.to_csv(outdir / "pareto_front.csv", index=False)
-    kidx, kdist = knee_point(front, x="kl_loss", y="recon_loss")
+    kidx, _ = knee_point(front, x="kl_loss", y="recon_loss")
     sweet = front.iloc[kidx]
     sweet_out = {
         "sweet_spot": sweet.to_dict(),
@@ -229,14 +226,6 @@ def main():
 
     plot_pareto(df, front, sweet, outdir, kl_min)
     plot_heatmaps(raw_df, outdir)
-    print("Wrote:")
-    print(outdir / "pareto_all.csv")
-    print(outdir / "pareto_front.csv")
-    print(outdir / "sweet_spot.json")
-    print(outdir / "pareto_plot.png")
-    print("\nSweet spot:")
-    print(json.dumps(sweet_out, indent=2))
-
 
 if __name__ == "__main__":
     main()
