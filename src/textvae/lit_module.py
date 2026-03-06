@@ -9,12 +9,15 @@
 # ------------------------------------------------------------
 
 from __future__ import annotations
+
 import json
 from pathlib import Path
 from typing import Optional
+
 import lightning as L
 import torch
 import torch.nn.functional as F
+
 from textvae.model import TextEmbeddingVAE
 
 
@@ -94,8 +97,7 @@ class LitTextVAE(L.LightningModule):
         kl_clamped = torch.clamp(kl_per_dim , min=free_per_dim)
         kl_used=kl_clamped.sum(dim=1).mean()
         kl_raw = kl_per_dim.sum(dim=1).mean()
-        
-        
+
         beta_eff = self._beta_eff()
         total_loss = recon_loss + (beta_eff * kl_used)
         return recon_loss, kl_raw, kl_used, total_loss, beta_eff
@@ -211,4 +213,3 @@ class LitTextVAE(L.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=self.lr)
- 

@@ -1,45 +1,33 @@
 from __future__ import annotations
+
 import argparse
 import csv
+import random
 import sys
 from pathlib import Path
 from typing import List
+
 import matplotlib.pyplot as plt
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer
-from textvae.interp_utils import find_ckpt_for_run
-import torch.nn.functional as F
-import random
 
 # --- Ensure src/ is importable when running as a script ---
 ROOT = Path(__file__).resolve().parents[1]  # repo root
 sys.path.insert(0, str(ROOT / "src"))
 
 from textvae.interp_utils import (  # noqa: E402
-        decode_from_mu,
-        embed_texts,
-        encode_to_emb_and_mu,
-        load_model_from_ckpt,
-        load_sweet_spot,
-        sample_pairs_sts_low_cos,
-        topk_nearest_texts,
-        cosine,
-        decode_from_mu_logvar_sampled,
-        path_geometry,
-        curvature_ratios
-    )
-
-def resolve_ckpt(run_dir: Path)->Path:
-
-    best = run_dir / "checkpoints"/ "best.ckpt"
-    if best.exists():
-        return best
-    last = run_dir / "checkpoints"/ "last.ckpt"
-    if last.exists():
-        return last
-    raise FileNotFoundError(f"No checkpoint found under: {run_dir}/checkpoints")
-
+    cosine,
+    curvature_ratios,
+    decode_from_mu_logvar_sampled,
+    embed_texts,
+    encode_to_emb_and_mu,
+    find_ckpt_for_run,
+    load_model_from_ckpt,
+    path_geometry,
+    sample_pairs_sts_low_cos,
+    topk_nearest_texts,
+)
 
 
 def plot_cos_curves(
@@ -98,7 +86,7 @@ def write_pair_csv(
             ]
         )
 
-        w.writerow([])  
+        w.writerow([])
         w.writerow(["t", "cos_to_A", "cos_to_B", "nn_rank", "nn_cos", "nn_text"])
 
         for r in rows:
@@ -175,7 +163,7 @@ def main() -> None:
 
     print("beta", model.hparams.beta)
     print("beta warmup", model.hparams.beta_warmup_epochs)
-    
+
 
     # --- Load dataset (validation/test split) ---
 
@@ -210,7 +198,7 @@ def main() -> None:
         ) # (N,D) normalized CPU
 
     print("corpus_embs shape:", tuple(corpus_embs.shape))
-  
+
     # --- Sample A/B pairs from different labels ---
 
     pairs = sample_pairs_sts_low_cos(
@@ -324,19 +312,6 @@ def main() -> None:
             E_emb.append(e)
         cos_start = cosine(E[0], emb_a)
         cos_end = cosine(E[-1], emb_b)
-        # Path length: sum ||E[i+1]-E[i]||
-        path_len = 0.0
-        for i in range(len(E) - 1):
-            path_len += float(torch.norm(E[i + 1] - E[i]).item())
-        # Curvature: mean ||E[i+1] - 2E[i] + E[i-1]||
-        curvs = []
-        for i in range(1, len(E) - 1):
-            c = torch.norm(E[i + 1] - 2 * E[i] + E[i - 1]).item()
-            curvs.append(float(c))
-        curv_mean = sum(curvs) / max(1, len(curvs))
-
-
-        deltas=[torch.norm(E[i+1]-E[i]).item() for i in range(len(E)-1)]
 
         geom_lat = path_geometry(E) # E is your latent-decoded list
         geom_emb = path_geometry(E_emb)
@@ -354,19 +329,7 @@ def main() -> None:
         path_ratio_cap = ratios["path_ratio_capped"]
         curv_ratio_cap = ratios["curv_ratio_mean_capped"]
 
-        print(len(E))
-        print(min(deltas), sum(deltas)/len(deltas), max(deltas))
-        print(sum(deltas))
         cosab=cosine(emb_a,emb_b)
-
-        print(mu_a.norm().item())
-        print(mu_b.norm().item())
-        print((mu_a-mu_b).norm().item())
-        print(cos_start)
-        print(cos_end)
-        print("l2start", torch.norm(E[0]-emb_a).item())
-        print("l2end", torch.norm(E[-1]-emb_b).item())
-        print("cosab", cosab)
 
         # Write per-pair CSV
 
@@ -386,7 +349,7 @@ def main() -> None:
         plot_path = outdir / f"{run_prefix}_pair{pidx:02d}.png"
         title = f"Latent interpolation (pair {pidx})|" f"STS similarity = {sim_score:.2f}"
         plot_cos_curves(ts, cos_a_list, cos_b_list, plot_path, title)
-        geom_csv=outdir / f"phase2_1_geometry_summary.csv"
+        geom_csv=outdir / "phase2_1_geometry_summary.csv"
         geom_rows:list[list[object]]=[]
         geom_rows.append([
             args.latent_dim,
