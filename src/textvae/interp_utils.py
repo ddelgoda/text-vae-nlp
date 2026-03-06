@@ -322,7 +322,7 @@ def sample_pairs_sts_low_cos(
 
 
 @torch.no_grad()
-def topk_nearest_texts(
+def topk_nearest_texts_old(
     query_emb: torch.Tensor,  # (D,) normalized on CPU
     corpus_embs: torch.Tensor,  # (N, D) normalized on CPU
     corpus_texts: Sequence[str],
@@ -338,6 +338,45 @@ def topk_nearest_texts(
     for idx, v in zip(idxs.tolist(), vals.tolist()):
         out.append((idx, float(v), corpus_texts[idx]))
     return out
+
+def topk_nearest_texts(
+    query_emb: torch.Tensor,
+    corpus_embs: torch.Tensor,
+    corpus_texts: list[str],
+    k: int = 5,
+):
+    """
+    query_emb: (D,) or (1,D)
+    corpus_embs: (N,D)
+    Returns: list of (rank, sim, text)
+    """
+
+    # ---- shape safety ----
+    if query_emb.dim() == 2:
+        # (1, D) -> (D,)
+        if query_emb.shape[0] != 1:
+            raise ValueError(f"query_emb should be (D,) or (1,D), got {tuple(query_emb.shape)}")
+        query_emb = query_emb[0]
+    elif query_emb.dim() != 1:
+        raise ValueError(f"query_emb should be (D,) or (1,D), got {tuple(query_emb.shape)}")
+
+    if corpus_embs.dim() != 2:
+        raise ValueError(f"corpus_embs should be (N,D), got {tuple(corpus_embs.shape)}")
+
+    # ensure on same device/dtype
+    query_emb = query_emb.to(corpus_embs.device, dtype=corpus_embs.dtype)
+
+    # cosine sims if both are normalized
+    sims = corpus_embs @ query_emb # (N,)
+    kk = min(int(k), sims.shape[0])
+
+    vals, idxs = torch.topk(sims, k=kk)
+
+    out = []
+    for rank, (idx, sim) in enumerate(zip(idxs.tolist(), vals.tolist()), start=1):
+        out.append((rank, float(sim), corpus_texts[idx]))
+    return out
+
 
 def find_ckpt_for_run(runs_dir: str | Path, latent_dim: int, beta: float) -> tuple[str, float]:
     runs_dir = Path(runs_dir)

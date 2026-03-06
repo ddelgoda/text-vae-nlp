@@ -10,6 +10,7 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 from textvae.interp_utils import find_ckpt_for_run
 import torch.nn.functional as F
+import random
 
 # --- Ensure src/ is importable when running as a script ---
 ROOT = Path(__file__).resolve().parents[1]  # repo root
@@ -179,18 +180,36 @@ def main() -> None:
     # --- Load dataset (validation/test split) ---
 
     ds = load_dataset("stsb_multi_mt", name = "en")
-    ds_corpus = ds["train"].select(range(min(args.corpus_size, len(ds))))
+    ds_corpus = ds["train"].select(range(min(args.corpus_size, len(ds["train"]))))
     ds_pairs = ds["dev"]
-    corpus_texts = list(ds_corpus["sentence1"])+list(ds_corpus["sentence2"])
+    corpus_set = set()
+    for row in ds_corpus:
+        s1 = row.get("sentence1", "")
+        s2 = row.get("sentence2", "")
+        if isinstance(s1, str) and s1.strip():
+            corpus_set.add(" ".join(s1.split()))
+        if isinstance(s2, str) and s2.strip():
+            corpus_set.add(" ".join(s2.split()))
+
+    corpus_texts = list(corpus_set)
+
+    random.Random(42).shuffle(corpus_texts)
+    CORPUS_SIZE = 2000  # capped
+    corpus_texts = corpus_texts[:CORPUS_SIZE]
+
+    print("corpus_texts size:", len(corpus_texts))
+
 
     corpus_embs = embed_texts(
         model=model,
         tokenizer=tokenizer,
         texts=corpus_texts,
-        max_length=args.max_length,
+        max_length=args.max_length, # or hardcode 128 etc
         device=device,
-        batch_size=args.batch_size,
-        )
+        batch_size=32,
+        ) # (N,D) normalized CPU
+
+    print("corpus_embs shape:", tuple(corpus_embs.shape))
   
     # --- Sample A/B pairs from different labels ---
 
@@ -219,6 +238,9 @@ def main() -> None:
     ts = [i / (args.steps - 1) for i in range(args.steps)]
 
     run_prefix=f"Id{args.latent_dim}_{beta_tag(args.beta)}"
+
+
+
     for pidx, (text_a, text_b, sim_score, cos_ab) in enumerate(pairs, start=1):
         print(f"\nPair {pidx} | STS similarity = {sim_score:.2f}")
 
@@ -279,6 +301,21 @@ def main() -> None:
                         sanitize_one_line(nn_text, 320),
                     ]
                 )
+        print("\n--- Semantic storyline ---")
+        snapshots = [(0, "START"), (len(E) // 2, "MIDDLE"), (len(E) - 1, "END")]
+
+        for step, name in snapshots:
+            nns = topk_nearest_texts(
+                query_emb=E[step], # (D,)
+                corpus_embs=corpus_embs, # (N,D)
+                corpus_texts=corpus_texts,
+                k=5,
+            )
+
+            print(f"\n{name} (t={ts[step]:.2f})")
+            for rank, sim, txt in nns:
+                print(f"{rank:02d} | {sim:.3f} | {txt[:120]}")
+
 
         E_emb = []
         for t in ts:
