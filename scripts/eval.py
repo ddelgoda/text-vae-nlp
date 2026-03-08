@@ -134,12 +134,17 @@ def plot_heatmaps(df: pd.DataFrame, outdir: Path) -> None:
     aggfunc="mean",
     ).sort_index().sort_index(axis=1)
 
-    pivot_kl = df.pivot_table(
-    index="latent_dim",
-    columns="beta",
-    values="kl_loss",
-    aggfunc="mean",
-    ).sort_index().sort_index(axis=1)
+    pivot_kl = (
+        df.pivot_table(
+            index="latent_dim",
+            columns="beta",
+            values="kl_loss",
+            aggfunc="mean",
+        )
+        .sort_index()
+        .sort_index(axis=1)
+    )
+    
 
     # Helper to plot one heatmap
     def _plot(pivot: pd.DataFrame, title: str, cbar_label: str, outname: str) -> None:

@@ -75,11 +75,15 @@ This performs:
 
 ### Reconstruction Loss Heatmap
 ![Reconstruction Heatmap](../artifacts/heatmap_recon.png)
+• At β = 0.0, reconstruction loss monotonic with latent dimensionality: it worsens from 4→32.
+• As β increases, KL is suppressed across all latent sizes, and reconstruction generally degrades relative to β = 0.0, with the strongest degradation appearing around latent_dim = 32.
+• Overall, the grid demonstrates the point that the regulation effect by beta could force the reconstruction to ignore the latent space at beta=0 or to degrade the reconstruction when beta>0.
 ### KL Divergence Heatmap
 ![KL Heatmap](../artifacts/heatmap_kl.png)
-• At β = 0.0, reconstruction loss is non-monotonic with latent dimensionality: it worsens from 4→32, then improves at 64.
-• As β increases, KL is suppressed across all latent sizes, and reconstruction generally degrades relative to β = 0.0, with the strongest degradation appearing in the mid-grid region (notably around latent_dim = 32, β = 1.0).
-• Overall, the grid exhibits a structured reconstruction–regularisation trade-off rather than widespread posterior collapse.
+• At β = 0.0, KL loss monotonic with latent dimensionality: it worsens from 4→32.
+• As β increases, KL is suppressed across all latent sizes notwithstanding the value of beta
+• Overall, the grid demonstrates posterior collpase across these points.
+
 
 ### Pareto Frontier
 ![Pareto Plot](../artifacts/pareto_plot_annotated.png)
