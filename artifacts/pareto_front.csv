@@ -1,0 +1,3 @@
+run_id,latent_dim,beta,model_name,freeze_transformer,lr,recon_loss,kl_loss,total_loss,best_model_path,best_model_score
+ld32_b0.1_s1_20260308_092813,32,0.1,sentence-transformers/all-MiniLM-L6-v2,True,0.0002,0.03130991384387016,0.005588217172771692,0.03186873346567154,/teamspace/studios/this_studio/text-vae-nlp/runs/ld32_b0.1_s1_20260308_092813/checkpoints/best.ckpt,0.03186873346567154
+ld32_b0.1_s2_20260308_092946,32,0.1,sentence-transformers/all-MiniLM-L6-v2,True,0.0002,0.031224770471453667,0.005596936214715242,0.031784456223249435,/teamspace/studios/this_studio/text-vae-nlp/runs/ld32_b0.1_s2_20260308_092946/checkpoints/best.ckpt,0.031784456223249435

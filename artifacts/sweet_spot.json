@@ -1,0 +1,18 @@
+{
+  "sweet_spot": {
+    "run_id": "ld32_b0.1_s1_20260308_092813",
+    "latent_dim": 32,
+    "beta": 0.1,
+    "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+    "freeze_transformer": true,
+    "lr": 0.0002,
+    "recon_loss": 0.03130991384387016,
+    "kl_loss": 0.005588217172771692,
+    "total_loss": 0.03186873346567154,
+    "best_model_path": "/teamspace/studios/this_studio/text-vae-nlp/runs/ld32_b0.1_s1_20260308_092813/checkpoints/best.ckpt",
+    "best_model_score": 0.03186873346567154
+  },
+  "selection_method": "Pareto knee (KL-filtered)",
+  "kl_min_threshold": 0.005,
+  "rationale": "Models with near-zero KL were excluded to avoid posterior collapse."
+}
