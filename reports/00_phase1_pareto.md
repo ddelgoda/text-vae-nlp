@@ -126,6 +126,6 @@ The selected configuration balances expressive latent capacity with controlled r
 Hyperparameter tuning is intentionally out of scope for this repo; the focus is controlled analysis of latent_dim and β. Automated tuning will be added when integrating this encoder into downstream tasks.
 
 ## Next Steps
-Phase 2 and 3 investigate whether the learned latent space is meaningful via:
+Phase 2 investigates whether the learned latent space is meaningful via:
 - latent interpolation
 - comparison with a plain autoencoder baseline
