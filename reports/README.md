@@ -11,10 +11,23 @@ Across multiple phases, the objectives are to:
 
 ### Configuration
 
+Phase 1 uses AG News for hyperparameter selection, while Phase 2 uses the STS-B dataset to evaluate interpolation behaviour on sentence pairs.
+
+
+# Phase 1
+
 | Component | Value |
 |----------|-------|
-| Dataset | AG News |
+| Dataset | AG News (model selection)|
 | Token length | 64 |
+| Optimiser | AdamW |
+| Framework | PyTorch Lightning |
+
+# Phase 2
+| Component | Value |
+|----------|-------|
+| Dataset | STS-B (interpolation evaluation) |
+| Token length | 128 |
 | Optimiser | AdamW |
 | Framework | PyTorch Lightning |
 
@@ -34,6 +47,7 @@ This folder contains structured experiment write-ups.
 ├── scripts/
 │   ├── train.py              # Training entry point
 │   ├── eval.py               # Pareto analysis + plotting
+|   └── interp.py             # Latent inperpolation
 │
 ├── artifacts/
 │   ├── pareto_plot.png
@@ -45,15 +59,4 @@ This folder contains structured experiment write-ups.
 └── .gitignore
 ```
 
-Artifacts are written to:
-```
-artifacts/
-├── pareto_plot.png
-├── pareto_front.csv
-├── pareto_plot_annotated.png
-├── pareto_all.csv
-├── heatmap_kl.png
-├── heatmap_recon.png
-├── sweet_spot.csv
-└── sweet_spot.json
-```
+Artifacts are written to the artifacts folder.

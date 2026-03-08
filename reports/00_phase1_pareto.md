@@ -35,7 +35,7 @@ To train the model, with a sweep, run:
 
 ```bash
 for z in 4 8 16 32 64; do
-  for b in 0.0 0.1 0.5 1.0 2.0 4.0; do
+  for b in 0.1 0.5 1.0 2.0 4.0; do
     for s in 0 1 2; do
       uv run python scripts/train.py \
         --latent_dim $z \
@@ -50,11 +50,12 @@ for z in 4 8 16 32 64; do
 done
 ```
 
+
 This will:
 - load the AG News dataset
 - tokenize text using a transformer tokenizer
 - encode sentences into embeddings using a frozen transformer for stability
-- train a VAE over the embeddings to reconstruct embeddings
+- train a VAE over the embeddings to reconstruct embeddings. Note, β = 0.0 configuration is avoided in this phase as it corresponds to plain AE behavior, which will be assessed in phase 3.
 - log reconstruction and KL losses
 - save training metrics (reconstruction loss, KL divergence, total loss) and checkpoints
 
@@ -71,23 +72,43 @@ This performs:
 - sweet-spot selection
 - result visualisation
 
-## Landscape Analysis
-
-### Reconstruction Loss Heatmap
+## Reconstruction Loss Heatmap
 ![Reconstruction Heatmap](../artifacts/heatmap_recon.png)
-### KL Divergence Heatmap
-![KL Heatmap](../artifacts/heatmap_kl.png)
-• At β = 0.0, reconstruction loss is non-monotonic with latent dimensionality: it worsens from 4→32, then improves at 64.
-• As β increases, KL is suppressed across all latent sizes, and reconstruction generally degrades relative to β = 0.0, with the strongest degradation appearing in the mid-grid region (notably around latent_dim = 32, β = 1.0).
-• Overall, the grid exhibits a structured reconstruction–regularisation trade-off rather than widespread posterior collapse.
 
-### Pareto Frontier
+*Figure: Mean reconstruction loss across the grid of latent dimensions and β values.*
+
+- Reconstruction loss increases as the **latent dimension grows**, with the strongest degradation appearing around **latent_dim = 32**.
+- Across the β values explored, reconstruction remains relatively stable, indicating that **reconstruction quality is largely insensitive to β** in this range.
+- Overall, the grid suggests that **reconstruction is primarily controlled by latent compression (latent_dim)** rather than the KL regularisation strength.
+
+
+## KL Divergence Heatmap
+![KL Heatmap](../artifacts/heatmap_kl.png)
+
+*Figure: Mean KL divergence across the same hyperparameter grid.*
+
+- KL divergence increases monotonically with **latent dimensionality**, reflecting the larger representational capacity of higher-dimensional latent spaces.
+- Lower β values (e.g., **β = 0.1**) produce slightly weaker regularisation, while larger β values impose stronger constraints on the latent distribution.
+- Together with the reconstruction heatmap, this indicates that **β mainly influences latent regularisation**, while reconstruction quality remains relatively stable.
+
+
+## Pareto Frontier
 ![Pareto Plot](../artifacts/pareto_plot_annotated.png)
-The Pareto front isolates non-dominated configurations.
+
+*Figure: Pareto frontier showing the trade-off between reconstruction loss and KL divergence.*
+
+The Pareto front isolates **non-dominated configurations** in the reconstruction–regularisation trade-off.
+
 Collapsed solutions (near-zero KL) are filtered out.
-The knee point is selected as the optimal trade-off between:
-- compression (KL divergence)
-- reconstruction accuracy
+
+The selected **knee point** represents the best balance between:
+
+- **compression** (KL divergence)
+- **reconstruction accuracy**
+
+In this sweep, **reconstruction behaviour is largely governed by latent dimensionality**, while **β primarily controls the strength of latent regularisation**.
+
+This configuration is used as the **candidate model for Phase 2 latent interpolation experiments**.
 
 ### Selected Sweet Spot
 See:
@@ -102,12 +123,9 @@ The selected configuration balances expressive latent capacity with controlled r
 - Trade-offs form a structured frontier, not random scatter.Optimal models balance compression and expressiveness 
 
 ## Optimisation Notes
-No learning rate scheduler is used in this project as the goal is to study **latent space behaviour**, not optimisation performance.  
-
 Hyperparameter tuning is intentionally out of scope for this repo; the focus is controlled analysis of latent_dim and β. Automated tuning will be added when integrating this encoder into downstream tasks.
 
 ## Next Steps
 Phase 2 investigates whether the learned latent space is meaningful via:
 - latent interpolation
 - comparison with a plain autoencoder baseline
-- beta warm-up scheduling
