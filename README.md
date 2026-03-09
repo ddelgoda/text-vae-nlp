@@ -86,3 +86,10 @@ Full project documentation is available here:
 ## Key Result
 
 Latent interpolation produces **smooth semantic trajectories** while embedding interpolation remains nearly linear, indicating that the VAE decoder maps latent straight lines onto **curved embedding manifolds**.
+
+## Disclaimer
+
+This repository documents personal research exploring latent representations in Variational Autoencoders and their geometric properties in embedding spaces.
+
+The work was undertaken as part of ongoing technical development in machine learning and AI assurance.
+All experiments use publicly available datasets and open-source tools and are conducted independently of my employer.
