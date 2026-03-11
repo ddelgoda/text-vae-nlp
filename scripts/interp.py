@@ -139,8 +139,8 @@ def main() -> None:
     ap.add_argument("--steps", type=int, default=11)  # points between 0..1 inclusive
     ap.add_argument("--batch_size", type=int, default=32)
     ap.add_argument("--run_dir", type=str, default="runs")
-    ap.add_argument("--latent_dim", type=int, default=16)
-    ap.add_argument("--beta", type=float, required=True)
+    ap.add_argument("--latent_dim", type=int, default=32)
+    ap.add_argument("--beta", type=float, default=0.1)
     ap.add_argument("--sim_min", type=float, default=0.0)
     ap.add_argument("--sim_max", type=float, default=2.0)
     ap.add_argument("--min_len", type=float, default=10.0)
@@ -150,12 +150,6 @@ def main() -> None:
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # --- Load sweet spot + model ---
-
-    # sweet = load_sweet_spot(args.sweet_spot_json)
-    # tokenizer = AutoTokenizer.from_pretrained(sweet.model_name)
-    # model = load_model_from_ckpt(sweet.ckpt_path, device=device)
 
     ckpt_path, model_kl = find_ckpt_for_run(args.run_dir, args.latent_dim, args.beta)
     model = load_model_from_ckpt(ckpt_path, device=device)
@@ -192,7 +186,7 @@ def main() -> None:
         model=model,
         tokenizer=tokenizer,
         texts=corpus_texts,
-        max_length=args.max_length, # or hardcode 128 etc
+        max_length=args.max_length, 
         device=device,
         batch_size=32,
         ) # (N,D) normalized CPU
@@ -202,7 +196,7 @@ def main() -> None:
     # --- Sample A/B pairs from different labels ---
 
     pairs = sample_pairs_sts_low_cos(
-        ds=ds_pairs, # e.g. ds["dev"]
+        ds=ds_pairs, 
         num_pairs=args.num_pairs,
         seed=args.seed,
         sim_min=args.sim_min,
@@ -215,19 +209,13 @@ def main() -> None:
         device=device,
         )
 
-    #pairs = sample_pairs_different_labels(ds=ds_corpus, num_pairs=args.num_pairs, seed=args.seed, \
-                                #sim_min=args.sim_min, sim_max=args.sim_max, min_len =args.min_len)
-
-
-
+ 
     if args.steps < 2:
         raise ValueError("--steps must be >= 2")
 
     ts = [i / (args.steps - 1) for i in range(args.steps)]
 
     run_prefix=f"Id{args.latent_dim}_{beta_tag(args.beta)}"
-
-
 
     for pidx, (text_a, text_b, sim_score, cos_ab) in enumerate(pairs, start=1):
         print(f"\nPair {pidx} | STS similarity = {sim_score:.2f}")
@@ -313,7 +301,7 @@ def main() -> None:
         cos_start = cosine(E[0], emb_a)
         cos_end = cosine(E[-1], emb_b)
 
-        geom_lat = path_geometry(E) # E is your latent-decoded list
+        geom_lat = path_geometry(E) 
         geom_emb = path_geometry(E_emb)
 
         ratios = curvature_ratios(geom_lat, geom_emb)

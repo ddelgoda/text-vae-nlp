@@ -13,6 +13,10 @@ Across multiple phases, the objectives are to:
 
 Phase 1 uses AG News for hyperparameter selection, while Phase 2 uses the STS-B dataset to evaluate interpolation behaviour on sentence pairs.
 
+The interpolation experiments in Phase 2 use a representative configuration from the Phase 1 sweep. In the current implementation the configuration is specified manually rather than being automatically loaded from the Pareto sweet-spot selection. The values correspond to the selected configuration identified in Phase 1.
+Automating this linkage between Phase 1 model selection and Phase 2 evaluation is planned as a future improvement.
+Future versions may automatically retrieve the selected configuration from Phase 1 outputs (e.g., Pareto analysis) to ensure tighter coupling between model selection and geometry evaluation.
+
 
 # Phase 1
 

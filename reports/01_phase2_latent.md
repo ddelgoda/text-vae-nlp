@@ -193,3 +193,21 @@ The current training framework already supports these configurations.
 ## Summary
 
 Phase 2 demonstrates that the VAE latent space supports **smooth interpolation and structured geometry**, consistent with a learned latent manifold underlying sentence embeddings.
+
+uv run python scripts/train.py  --latent_dim 32 --beta 0.1 --beta_warmup_epochs 5  --num_workers 0 --kl_free_bits 0.1 --max_length 128
+uv run python scripts/train.py \      
+--latent_dim 32 \
+--beta 0.1 \
+--beta_warmup_epochs 5  --num_workers 0 \
+--kl_free_bits 0.1 \
+--max_length 128
+
+uv run python scripts/interp.py --min_len 10 \                    
+--run_dir runs/ld32_b0.1_s42_20260311_001705 \
+--sim_min 0.0 \
+--sim_max 1.5 \
+--num_pairs 3 \
+--corpus_size 2000 \
+--topk 5 --beta 0.1
+
+uv run python scripts/interp.py --min_len 10 --run_dir runs/ld32_b0.1_s42_20260311_001705 --sim_min 0.0 --sim_max 1.5 --num_pairs 3 --corpus_size 2000 --topk 5 

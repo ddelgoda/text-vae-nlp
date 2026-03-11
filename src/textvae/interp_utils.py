@@ -15,38 +15,6 @@ from textvae.lit_module import LitTextVAE
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-@dataclass
-class SweetSpot:
-    ckpt_path: str
-    model_name: str
-    latent_dim: int
-    beta: float
-
-
-def load_sweet_spot(sweet_spot_json: str | Path) -> SweetSpot:
-    p = Path(sweet_spot_json)
-    d = json.loads(p.read_text(encoding="utf-8"))
-    spot = d.get("sweet_spot", d)
-
-    ckpt = spot.get("best_model_path") or d.get("best_model_path")
-    if not ckpt:
-        raise KeyError("Could not find best_model_path in sweet_spot.json")
-
-    model_name = spot.get("model_name") or d.get("model_name")
-    if not model_name:
-        raise KeyError("Could not find model_name in sweet_spot.json")
-
-    latent_dim = int(spot.get("latent_dim", 0))
-    beta = float(spot.get("beta", 0.0))
-
-    return SweetSpot(
-        ckpt_path=str(ckpt),
-        model_name=str(model_name),
-        latent_dim=latent_dim,
-        beta=beta,
-    )
-
-
 def load_model_from_ckpt(ckpt_path: str, device: torch.device) -> LitTextVAE:
     model = LitTextVAE.load_from_checkpoint(ckpt_path, map_location=device)
     model.eval()
@@ -198,18 +166,6 @@ def decode_from_mu_logvar_sampled(
     recon_mean = F.normalize(recon_mean, p=2, dim=0)
     return recon_mean.detach().cpu()
 
-@torch.no_grad()
-def decode_from_mu(
-    model: LitTextVAE, mu: torch.Tensor, device: torch.device
-) -> torch.Tensor:
-    """
-    mu: (Z,) on CPU or GPU
-    returns: recon_emb (D,) normalized on CPU
-    """
-    z = mu.to(device).unsqueeze(0)  # (1, Z)
-    recon = model.vae.decoder(z).squeeze(0)  # (D,)
-    recon = F.normalize(recon, p=2, dim=0)
-    return recon.detach().cpu()
 
 def cosine(a: torch.Tensor, b: torch.Tensor) -> float:
     """Cosine for already-normalized vectors (CPU tensors)."""
