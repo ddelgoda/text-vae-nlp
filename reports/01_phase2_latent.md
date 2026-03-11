@@ -211,3 +211,5 @@ uv run python scripts/interp.py --min_len 10 \
 --topk 5 --beta 0.1
 
 uv run python scripts/interp.py --min_len 10 --run_dir runs/ld32_b0.1_s42_20260311_001705 --sim_min 0.0 --sim_max 1.5 --num_pairs 3 --corpus_size 2000 --topk 5 
+
+

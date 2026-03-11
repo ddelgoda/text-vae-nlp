@@ -278,7 +278,13 @@ def main() -> None:
                     ]
                 )
         print("\n--- Semantic storyline ---")
-        snapshots = [(0, "START"), (len(E) // 2, "MIDDLE"), (len(E) - 1, "END")]
+        mid_idx = min(
+            range(len(E)),
+            key=lambda i: abs(cos_a_list[i] - cos_b_list[i])
+            )
+
+        snapshots = [(0, "START"), (mid_idx, "MIDDLE"), (len(E) - 1, "END")]
+    
 
         for step, name in snapshots:
             nns = topk_nearest_texts(
