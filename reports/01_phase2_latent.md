@@ -34,9 +34,9 @@ F --> H[Latent Interpolation];
 G --> H;
 
 H --> I[Decoder];
-I --> J[Reconstructed Embedding E(t)];
+I --> J[Reconstructed Embedding E_t];
 
-J --> K[Cosine Similarity to A/B];
+J --> K[Cosine Similarity to A-B];
 J --> L[Nearest Neighbor Retrieval];
 J --> M[Geometry Metrics];
 ```
