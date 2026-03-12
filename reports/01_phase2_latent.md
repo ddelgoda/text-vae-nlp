@@ -21,10 +21,10 @@ If the latent space is well-structured, interpolation should show:
 ```mermaid
 graph TD
 
-A[Sentence A] --> B[Transformer Encoder]
-C[Sentence B] --> B
+A[Sentence A] --> B[Transformer Encoder];
+C[Sentence B] --> B;
 
-B --> D[Sentence Embeddings]
+B --> D[Sentence Embeddings];
 
 D --> E[VAE Encoder];
 E --> F[Latent Mean mu_A];
