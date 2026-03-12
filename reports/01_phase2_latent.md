@@ -27,7 +27,7 @@ graph TD
 ```
 
 ```mermaid
-graph LR
+graph TD
 
 A[Sentence A] --> B[Transformer Encoder];
 C[Sentence B] --> B;
