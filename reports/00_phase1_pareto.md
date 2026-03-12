@@ -110,20 +110,25 @@ This performs:
 ### Reconstruction Loss Heatmap
 
 ![Reconstruction Heatmap](../artifacts/heatmap_recon.png)
+*Figure: Mean reconstruction loss across the grid of latent dimensions and β values.*
 
 - Reconstruction varies more with latent dimensionality than with `β`.
-- Very large latent dimensions show weaker reconstruction stability in this sweep.
+- Across the β values explored, reconstruction remains relatively stable, indicating that reconstruction quality is largely insensitive to β in this range.
+- Overall, the grid suggests that reconstruction is primarily controlled by latent compression (latent_dim) rather than the KL regularisation strength.
 
 ### KL Divergence Heatmap
 
 ![KL Heatmap](../artifacts/heatmap_kl.png)
+*Figure: Mean KL divergence across the same hyperparameter grid.*
 
-- KL generally increases with latent dimensionality.
-- `β` mainly controls regularisation strength and latent usage pressure.
+- KL divergence increases monotonically with **latent dimensionality**, reflecting the larger representational capacity of higher-dimensional latent spaces.
+- Lower β values (e.g., **β = 0.1**) produce slightly weaker regularisation, while larger β values impose stronger constraints on the latent distribution.
+- Together with the reconstruction heatmap, this indicates that **β mainly influences latent regularisation**, while reconstruction quality remains relatively stable.
 
 ### Pareto Frontier
 
 ![Pareto Plot](../artifacts/pareto_plot_annotated.png)
+*Figure: Pareto frontier showing the trade-off between reconstruction loss and KL divergence.*
 
 - Non-dominated solutions define the reconstruction–regularisation frontier.
 - Near-zero KL runs are filtered as collapsed solutions.
