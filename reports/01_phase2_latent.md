@@ -29,14 +29,14 @@ graph TD
 ```mermaid
 graph TD
 
-A[Sentence A] --> B[Transformer Encoder];
-C[Sentence B] --> B;
+A[Sentence A] --> B[Transformer Encoder]
+C[Sentence B] --> B
 
-B --> D[Sentence Embeddings];
+B --> D[Sentence Embeddings]
 
 D --> E[VAE Encoder];
-E --> F[Latent Mean μ_A];
-E --> G[Latent Mean μ_B];
+E --> F[Latent Mean mu_A];
+E --> G[Latent Mean mu_B];
 
 F --> H[Latent Interpolation];
 G --> H;
