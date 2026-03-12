@@ -165,8 +165,63 @@ t = 1      (end)
 The nearest sentences provide a **semantic storyline** showing how the embedding region changes along the interpolation path.
 
 ---
+# Intermediate observations
 
-# Results
+Dataset suitability
+Initial experiments used sentence pairs from AG News. However, these pairs did not provide sufficient semantic separation for interpolation experiments, as many sentences within the dataset are topically similar.
+To obtain clearer semantic variation between sentence pairs, the STS-B (Semantic Textual Similarity Benchmark) dataset was adopted instead.
+Posterior collapse with Phase 1 configuration
+When training was run using the Phase 1 “sweet spot” hyperparameter configuration, the VAE experienced posterior collapse, with the KL divergence rapidly approaching 0. This indicated that the model was ignoring the latent variables and relying solely on the decoder.
+Beta warm-up strategy
+To mitigate this, a β warm-up schedule over the first 5 epochs was introduced.
+Under this approach, the KL weight (β) is gradually increased during early training, allowing the latent space to expand before strong regularisation is applied.
+Free-bits strategy
+Posterior collapse still occurred intermittently even with β warm-up.
+To address this, a free-bits strategy was implemented, which enforces a minimum KL contribution per latent dimension. This penalises very small KL values and discourages the model from collapsing the latent representation.
+This modification successfully stabilised training and prevented posterior collapse.
+⸻
+Why this matters
+These adjustments ensure that the latent space remains informative and structured, rather than collapsing to a trivial representation. A well-formed latent space is critical for this project because the goal is to:
+• interpolate between sentence embeddings in latent space
+• decode meaningful intermediate embeddings
+• analyse the geometric structure of semantic transitions
+Without preventing posterior collapse, the interpolation experiments would produce degenerate or uninformative trajectories.
+
+
+# Training the Model
+Model training is performed using
+
+```bash
+
+uv run python scripts/train.py  --latent_dim 32 --beta 0.1 --beta_warmup_epochs 5  --num_workers 0 --kl_free_bits 0.1 --max_length 128
+uv run python scripts/train.py \      
+--latent_dim 32 \
+--beta 0.1 \
+--beta_warmup_epochs 5 \
+--num_workers 0 \
+--kl_free_bits 0.1 \
+--max_length 128
+```
+
+# Interpolation of latent space
+
+Interpolation of the latent space is performed by selecting the created training run directory, beta and the latent dimension
+
+uv run python scripts/interp.py --min_len 10 \                    
+--run_dir runs/ld32_b0.1_s42_20260311_001705 \
+--sim_min 0.0 \
+--sim_max 1.5 \
+--num_pairs 3 \
+--corpus_size 2000 \
+--topk 5 --beta 0.1
+
+The interpolation experiments in Phase 2 use a representative configuration from the Phase 1 sweep. In the current implementation the configuration is specified manually rather than being automatically loaded from the Pareto sweet-spot selection. The values correspond to the selected configuration identified in Phase 1.
+Automating this linkage between Phase 1 model selection and Phase 2 evaluation is planned as a future improvement.
+Future versions may automatically retrieve the selected configuration from Phase 1 outputs (e.g., Pareto analysis) to ensure tighter coupling between model selection and geometry evaluation.
+
+
+
+# Key findings
 
 Typical observations:
 
@@ -183,7 +238,6 @@ These results suggest the latent space behaves as a **smooth coordinate system o
 Future experiments will investigate how training parameters influence latent geometry, including:
 
 - KL regularisation strength (β)  
-- free-bits regularisation  
 - latent dimensionality  
 
 The current training framework already supports these configurations.
@@ -194,22 +248,8 @@ The current training framework already supports these configurations.
 
 Phase 2 demonstrates that the VAE latent space supports **smooth interpolation and structured geometry**, consistent with a learned latent manifold underlying sentence embeddings.
 
-uv run python scripts/train.py  --latent_dim 32 --beta 0.1 --beta_warmup_epochs 5  --num_workers 0 --kl_free_bits 0.1 --max_length 128
-uv run python scripts/train.py \      
---latent_dim 32 \
---beta 0.1 \
---beta_warmup_epochs 5  --num_workers 0 \
---kl_free_bits 0.1 \
---max_length 128
 
-uv run python scripts/interp.py --min_len 10 \                    
---run_dir runs/ld32_b0.1_s42_20260311_001705 \
---sim_min 0.0 \
---sim_max 1.5 \
---num_pairs 3 \
---corpus_size 2000 \
---topk 5 --beta 0.1
 
-uv run python scripts/interp.py --min_len 10 --run_dir runs/ld32_b0.1_s42_20260311_001705 --sim_min 0.0 --sim_max 1.5 --num_pairs 3 --corpus_size 2000 --topk 5 
+
 
 
