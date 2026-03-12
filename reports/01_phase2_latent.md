@@ -17,28 +17,36 @@ If the latent space is well-structured, interpolation should show:
 ---
 
 # Latent Interpolation Pipeline
+```mermaid
+graph TD
+    A[Start] --> B{Is it sunny?};
+    B -->|Yes| C[Go to the beach];
+    B -->|No| D[Stay indoors];
+    C --> E[Have fun!];
+    D --> E;
+```
 
 ```mermaid
-flowchart LR
+graph LR
 
-A[Sentence A] --> B[Transformer Encoder]
-C[Sentence B] --> B
+A[Sentence A] --> B[Transformer Encoder];
+C[Sentence B] --> B;
 
-B --> D[Sentence Embeddings]
+B --> D[Sentence Embeddings];
 
-D --> E[VAE Encoder]
-E --> F[Latent Mean μ_A]
-E --> G[Latent Mean μ_B]
+D --> E[VAE Encoder];
+E --> F[Latent Mean μ_A];
+E --> G[Latent Mean μ_B];
 
-F --> H[Latent Interpolation]
-G --> H
+F --> H[Latent Interpolation];
+G --> H;
 
-H --> I[Decoder]
-I --> J[Reconstructed Embedding E(t)]
+H --> I[Decoder];
+I --> J[Reconstructed Embedding E(t)];
 
-J --> K[Cosine Similarity to A/B]
-J --> L[Nearest Neighbor Retrieval]
-J --> M[Geometry Metrics]
+J --> K[Cosine Similarity to A/B];
+J --> L[Nearest Neighbor Retrieval];
+J --> M[Geometry Metrics];
 ```
 
 ---
