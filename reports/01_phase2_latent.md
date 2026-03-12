@@ -17,14 +17,6 @@ If the latent space is well-structured, interpolation should show:
 ---
 
 # Latent Interpolation Pipeline
-```mermaid
-graph TD
-    A[Start] --> B{Is it sunny?};
-    B -->|Yes| C[Go to the beach];
-    B -->|No| D[Stay indoors];
-    C --> E[Have fun!];
-    D --> E;
-```
 
 ```mermaid
 graph TD
