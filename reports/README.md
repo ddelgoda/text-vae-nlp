@@ -1,66 +1,90 @@
+# Reports Overview
+
+---
+
 ## Objectives
-This project aims to systematically study the behaviour of Variational Autoencoders (VAEs) in embedding space, progressing from controlled trade-off analysis to latent space validation and training dynamics.
-Across multiple phases, the objectives are to:
-• Characterise reconstruction–compression trade-offs across latent dimensions and KL regularisation strengths
-• Detect and mitigate posterior collapse
-• Validate that the learned latent space is semantically meaningful
-• Compare VAE behaviour against a plain autoencoder baseline
-• Analyse the effect of training dynamics (e.g., β scheduling) on stability and representation quality
-• Structure experiments in a reproducible, extensible research-to-production workflow
 
+This project studies Variational Autoencoders (VAEs) in embedding space, from trade-off analysis to latent-space validation.
 
-### Configuration
+Primary goals:
 
-Phase 1 uses AG News for hyperparameter selection, while Phase 2 uses the STS-B dataset to evaluate interpolation behaviour on sentence pairs.
+- characterise reconstruction–compression trade-offs across latent dimensions and KL strengths
+- detect and mitigate posterior collapse
+- validate that learned latent structure is semantically meaningful
+- compare VAE behaviour with a plain autoencoder baseline (later phase)
+- assess training dynamics such as β scheduling
 
-The interpolation experiments in Phase 2 use a representative configuration from the Phase 1 sweep. In the current implementation the configuration is specified manually rather than being automatically loaded from the Pareto sweet-spot selection. The values correspond to the selected configuration identified in Phase 1.
-Automating this linkage between Phase 1 model selection and Phase 2 evaluation is planned as a future improvement.
-Future versions may automatically retrieve the selected configuration from Phase 1 outputs (e.g., Pareto analysis) to ensure tighter coupling between model selection and geometry evaluation.
+---
 
+## Configuration Summary
 
-# Phase 1
+Phase 1 focuses on model selection with AG News.
+Phase 2 focuses on interpolation geometry validation with STS-B-style sentence similarity analysis.
+
+### Phase 1
 
 | Component | Value |
 |----------|-------|
-| Dataset | AG News (model selection)|
+| Dataset | AG News (model selection) |
 | Token length | 64 |
 | Optimiser | AdamW |
 | Framework | PyTorch Lightning |
 
-# Phase 2
+### Phase 2
+
 | Component | Value |
 |----------|-------|
-| Dataset | STS-B (interpolation evaluation) |
+| Dataset | STS-B style interpolation evaluation |
 | Token length | 128 |
 | Optimiser | AdamW |
 | Framework | PyTorch Lightning |
 
-# Experiment Reports
-This folder contains structured experiment write-ups.
-- 00_phase1_pareto.md — Latent dimension vs KL trade-off analysis and sweet-spot selection.
+---
 
- ## Repository Structure
-```
- text-vae-nlp/
-│
+## Report Flow
+
+Both phase reports follow the same structure:
+
+1. Objective
+2. Reasoning & Hypotheses
+3. Experimental Setup
+4. Training
+5. Evaluation
+6. Results
+7. Key Findings
+8. Limitations and Next Steps
+
+---
+
+## Experiment Reports
+
+- `00_phase1_pareto.md` — latent dimension vs KL trade-off analysis and sweet-spot selection
+- `01_phase2_latent.md` — latent interpolation geometry and semantic trajectory evaluation
+
+---
+
+## Repository Structure
+
+```text
+text-vae-nlp/
 ├── src/textvae/
 │   ├── model.py          # Transformer + VAE
 │   ├── lit_module.py     # Lightning training logic
 │   └── __init__.py
-│
 ├── scripts/
-│   ├── train.py              # Training entry point
-│   ├── eval.py               # Pareto analysis + plotting
-|   └── interp.py             # Latent inperpolation
-│
+│   ├── train.py          # Training entry point
+│   ├── eval.py           # Pareto analysis + plotting
+│   └── interp.py         # Latent interpolation
 ├── artifacts/
 │   ├── pareto_plot.png
 │   ├── pareto_front.csv
 │   └── sweet_spot.json
-│
+├── reports/
+│   ├── 00_phase1_pareto.md
+│   ├── 01_phase2_latent.md
+│   └── README.md
 ├── pyproject.toml
-├── README.md
-└── .gitignore
+└── README.md
 ```
 
-Artifacts are written to the artifacts folder.
+Artifacts are written to the `artifacts/` folder.
