@@ -27,10 +27,6 @@ Phase 2 probes the **geometry of the learned latent space** using sentence pairs
 
 STS-B provides interpretable sentence pairs that are well suited for **latent interpolation experiments**, allowing the trajectory between two sentences to be analysed in embedding space.
 
-Using separate datasets keeps:
-
-- **Phase 1 focused on model selection**
-- **Phase 2 focused on geometric evaluation**
 
 ---
 
@@ -44,9 +40,6 @@ Stable implementation and results for Phase 1 (AG News Pareto analysis).
 - **`phase2-latent-interp`**
 Experimental work exploring latent interpolation and geometry analysis using STS-B.
 
-Phase 2 documentation is available in:
-
-- `reports/phase2_latent_interpolation.md`
 
 Full project documentation is available here:
 

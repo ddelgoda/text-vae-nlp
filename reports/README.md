@@ -21,6 +21,16 @@ Primary goals:
 Phase 1 focuses on model selection with AG News.
 Phase 2 focuses on interpolation geometry validation with STS-B-style sentence similarity analysis.
 
+### Hyperparameter Selection Across Phases
+
+Phase 1 and Phase 2 use different datasets and therefore evaluate different properties of the model.
+
+Phase 1 uses the AG News dataset to study the trade-off between reconstruction quality and KL divergence across latent dimensions and β values.
+
+Phase 2 uses the STS-B dataset to evaluate latent interpolation behaviour and geometric properties of the learned manifold.
+
+Because the datasets differ substantially in sentence length, topic structure, and semantic granularity, hyperparameters are not strictly transferred between phases. Each phase is therefore analysed independently to avoid introducing bias from dataset-specific optimisation.
+
 ### Phase 1
 
 | Component | Value |

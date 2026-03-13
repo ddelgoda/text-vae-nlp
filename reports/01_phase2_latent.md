@@ -52,7 +52,7 @@ A corpus of approximately **2000 unique sentences** is built from the training s
 
 ### Method
 - Interpolation evaluation uses sentence-pair style analysis (STS-B style semantic comparison).
-- The selected training configuration currently matches the Phase 1 sweet spot manually.
+
 
 #### Latent Interpolation
 
@@ -214,13 +214,80 @@ uv run python scripts/interp.py \
 
 ## Results
 
-Typical observations:
+### Cosine Similarity Along Interpolation Path
 
-- cosine similarity evolves smoothly between interpolation endpoints
-- latent-space paths are often longer than direct embedding-linear baselines
-- curvature ratios indicate nonlinear but continuous trajectories
+The cosine similarity between decoded embeddings and the two endpoint sentences was tracked across the latent interpolation path.
 
-These patterns are consistent with a smooth latent coordinate system over the sentence-embedding manifold.
+Example results are shown below.
+
+![Interpolation example](../artifacts/ld32_0p1_pair03.png)
+
+Observations:
+
+- Cosine similarity fluctuates along the path rather than changing monotonically.
+- Decoded embeddings remain within a relatively narrow similarity band with respect to the endpoints.
+- The interpolation does not collapse to identical embeddings or trivial solutions.
+
+These patterns suggest that the decoder introduces **non-linear structure in embedding space**, causing latent interpolation to follow curved trajectories rather than straight semantic transitions.
+
+
+### Latent Path Geometry
+
+Geometry metrics confirm that the decoded interpolation trajectory differs from straight interpolation in embedding space.
+![Geometry Summary](../artifacts/phase2_1_geometry_summary.csv)
+
+In particular:
+
+- **Path length in latent decoding is significantly longer** than direct embedding interpolation.
+- **Curvature values are non-zero**, indicating that the decoded path bends through embedding space. 
+- Despite this curvature, decoded embeddings remain stable and do not collapse.
+
+This behaviour is consistent with a VAE decoder mapping that reshapes latent space into a structured manifold over sentence embeddings.
+
+Note: Because linear interpolation in embedding space is nearly straight, the baseline curvature values are close to zero. As a result, raw curvature ratios can become very large. To avoid unstable ratios caused by near-zero denominators, capped ratios are reported in the summary statistics.
+
+
+### Qualitative Neighbourhood Shift
+
+Nearest-neighbour retrieval along the interpolation path illustrates how the decoded embeddings move through embedding space. Note: The midpoint is chosen as the interpolation step where similarity to both endpoints is most balanced. If this criterion selects an endpoint, the midpoint defaults to the central interpolation step to ensure distinct START–MIDDLE–END snapshots.
+
+Example (one pair):
+
+Pair 3 | STS similarity = 0.00
+
+--- Semantic storyline ---
+mid_idx = 2, t = 0.20
+
+START (t=0.00)
+01 | 0.843 | A baseball player throws the ball.
+02 | 0.843 | A woman is eating a cupcake.
+03 | 0.843 | A man is taking pictures of ant.
+04 | 0.843 | A girl is eating a cupcake.
+05 | 0.843 | A man rides off on a motorcycle.
+
+MIDDLE (t=0.20)
+01 | 0.822 | The man is singing and playing the guitar.
+02 | 0.821 | The man is talking on the phone.
+03 | 0.821 | A young boy sings and plays a guitar.
+04 | 0.821 | The man sang on stage into the microphone.
+05 | 0.821 | A white cat stands on the floor.
+
+END (t=1.00)
+01 | 0.845 | A young boy sings and plays a guitar.
+02 | 0.845 | The girl applied face makeup to a man.
+03 | 0.844 | A boy is singing and playing the piano.
+04 | 0.844 | A white and brown dog runs in a field.
+05 | 0.844 | The white and brown dog runs across the grass.
+
+
+Observation:
+
+The nearest-neighbour sentences shift between different activity-based semantic neighbourhoods along the interpolation path.
+
+The START position retrieves simple single-actor actions (e.g. eating, throwing, riding), while the intermediate region retrieves performance or communication-related activities (e.g. singing, speaking).
+
+Although the interpolation does not produce a strict semantic progression toward the second endpoint, the retrieved neighbours indicate that the decoded embeddings move through distinct regions of the sentence embedding space.
+
 
 ---
 
@@ -228,12 +295,10 @@ These patterns are consistent with a smooth latent coordinate system over the se
 
 - The learned latent space supports coherent interpolation behaviour.
 - Collapse mitigation (β warm-up + free bits) is important for stable geometry.
-- Phase 1 model selection transfers effectively into Phase 2 geometric validation.
 
 ---
 
 ## Limitations and Next Steps
 
-- Phase 1 → Phase 2 configuration handoff is currently manual.
-- Future work should auto-load the selected sweet spot from Pareto outputs.
+- Although latent interpolation produces stable trajectories in embedding space, the decoded intermediate points do not always form clear semantic transitions between the endpoint sentences. Nearest-neighbour retrieval indicates movement between embedding neighbourhoods, but the progression is not consistently interpretable. Further work is needed to improve the alignment between latent interpolation paths and semantic structure.
 - Additional sweeps over `β` and `latent_dim` can map how geometry changes with regularisation and capacity.

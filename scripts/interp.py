@@ -278,12 +278,23 @@ def main() -> None:
                     ]
                 )
         print("\n--- Semantic storyline ---")
+        # find semantic midpoint
         mid_idx = min(
             range(len(E)),
             key=lambda i: abs(cos_a_list[i] - cos_b_list[i])
-            )
+        )
 
-        snapshots = [(0, "START"), (mid_idx, "MIDDLE"), (len(E) - 1, "END")]
+        # guard: midpoint cannot be start or end
+        if mid_idx == 0 or mid_idx == len(E) - 1:
+            mid_idx = len(E) // 2
+
+        snapshots = [
+            (0, "START"),
+            (mid_idx, "MIDDLE"),
+            (len(E) - 1, "END"),
+        ]
+
+        print(f"mid_idx = {mid_idx}, t = {ts[mid_idx]:.2f}")
     
 
         for step, name in snapshots:
