@@ -92,7 +92,7 @@ This sweep:
 Run Pareto analysis:
 
 ```bash
-uv run python scripts/eval.py --kl_min 0.01
+uv run python scripts/eval.py --kl_min 0.001
 ```
 
 This performs:
@@ -133,6 +133,7 @@ This performs:
 - Non-dominated solutions define the reconstruction–regularisation frontier.
 - Near-zero KL runs are filtered as collapsed solutions.
 - The knee point is selected as the Phase 2 candidate configuration.
+- KL divergence values are small in magnitude (≈10⁻⁴–10⁻²), which compresses the left region of the Pareto plot under linear scaling. This reflects typical behaviour in β-VAE training where many configurations approach KL collapse.
 
 ### Selected Sweet Spot Artifacts
 
