@@ -1,5 +1,7 @@
 # Phase 2 — Latent Interpolation Analysis
 
+# Phase 2 — Latent Interpolation Analysis
+
 ---
 
 ## Objective
@@ -10,17 +12,36 @@ Core question:
 
 > Does linear interpolation in latent space produce smooth, interpretable trajectories in embedding space?
 
+👉 **Intuition:**  
+A VAE does not just compress data — it organises it into a *continuous latent space*.  
+If this works, then moving through that space should correspond to meaningful changes in the data.
+
 ---
 
 ## Reasoning & Hypotheses
 
-If the latent space is structured, interpolation between two latent endpoints should produce:
+In a well-trained VAE:
 
-- smooth cosine similarity transitions
-- continuous movement through embedding space
-- gradual nearest-neighbour changes rather than abrupt jumps
+- similar sentences map to nearby latent points  
+- the decoder provides a smooth mapping back to embedding space  
 
-Posterior collapse would make these trajectories degenerate or uninformative, so collapse mitigation is required before interpolation analysis.
+This means interpolation should behave like:
+
+> “walking through meaning space”, not jumping randomly.
+
+Expected behaviour:
+
+- smooth cosine similarity transitions  
+- continuous movement through embedding space  
+- gradual nearest-neighbour changes  
+
+Why collapse matters:
+
+- If KL ≈ 0, latent variables are ignored  
+- The model behaves like a plain autoencoder  
+- Interpolation becomes meaningless  
+
+Phase 2 assumes Phase 1 has already removed collapsed models.
 
 ---
 
@@ -28,30 +49,42 @@ Posterior collapse would make these trajectories degenerate or uninformative, so
 
 ### Model and Training Stability
 
-The interpolation study uses the VAE setup selected from Phase 1.
+We use the configuration selected in Phase 1.
 
-To stabilise latent usage during training:
+Interpolation is more sensitive than reconstruction, so we stabilise training:
 
-- **β warm-up** is applied so regularisation ramps up gradually
-- **free bits** (`--kl_free_bits`) are used to discourage near-zero KL per latent dimension
+- **β warm-up**  
+  - early: focus on reconstruction  
+  - later: enforce latent structure  
 
-These mechanisms reduce collapse risk and preserve informative latent structure for geometric analysis.
+- **free bits (`--kl_free_bits`)**  
+  - ensures each latent dimension carries information  
+  - prevents KL collapse  
+
+These ensure the latent space remains informative.
+
+---
 
 ### Dataset
 
-Experiments use the **STS-B (Semantic Textual Similarity Benchmark)** dataset.
+We use **STS-B (Semantic Textual Similarity Benchmark)**.
 
-Two components are used:
+Why:
+
+- includes sentence pairs with varying similarity  
+- allows testing both local and global interpolation behaviour  
 
 | Role | Split |
 |-----|------|
-| interpolation sentence pairs | `dev` |
+| interpolation pairs | `dev` |
 | retrieval corpus | `train` |
 
-A corpus of approximately **2000 unique sentences** is built from the training split and embedded using the frozen transformer encoder.
+- ~2000 sentences used as a reference corpus  
+- all embedded using the frozen transformer  
+
+---
 
 ### Method
-- Interpolation evaluation uses sentence-pair style analysis (STS-B style semantic comparison).
 
 
 #### Latent Interpolation
@@ -63,7 +96,12 @@ A → latent vector μ_A
 B → latent vector μ_B
 ```
 
-Interpolation is defined as:
+
+These are the **posterior means** (not sampled values).
+
+Using μ removes stochastic noise and isolates geometry.
+
+Interpolation:
 
 ```
 μ_t = (1 - t) μ_A + t μ_B
@@ -75,11 +113,20 @@ for
 t ∈ [0,1]
 ```
 
+
+Interpretation:
+
+- this is a straight line in latent space  
+- we test whether this becomes meaningful after decoding  
+
 At each step:
 
-1. Latent vectors are interpolated  
-2. The decoder reconstructs an embedding  
-3. Cosine similarity to both endpoints is computed
+1. interpolate latent vectors  
+2. decode into embedding space  
+3. analyse behaviour  
+
+---
+
 
 Pipeline overview:
 
@@ -109,8 +156,7 @@ J --> M[Geometry Metrics];
 
 #### Evaluation Metrics
 
-- Cosine Similarity Curves
-
+1. Cosine Similarity Curves (Continuity)
 For each interpolation point:
 
 ```
@@ -124,6 +170,8 @@ Expected behaviour:
 - similarity to B increases
 
 Smooth curves indicate coherent latent structure.
+
+2. Path Geometry (Manifold Structure)
 
 - Path Length
 
@@ -139,6 +187,8 @@ Compared with a baseline:
 linear interpolation between embeddings
 ```
 
+longer path → decoder stretches space 
+
 - Curvature
 
 Approximates how much the trajectory bends:
@@ -149,7 +199,7 @@ Approximates how much the trajectory bends:
 
 Higher curvature suggests the embedding manifold is nonlinear.
 
-- Geometry Ratios
+3. Geometry Ratios (Relative Distortion)
 
 Latent interpolation is compared with embedding interpolation:
 
@@ -160,7 +210,7 @@ curv_ratio = curv_lat / curv_emb
 
 Large ratios indicate the decoder maps latent straight lines into **curved embedding trajectories**.
 
-- Semantic Storyline
+4. Semantic Storyline
 
 To interpret interpolation behaviour, reconstructed embeddings are decoded using **nearest-neighbor retrieval** from the corpus.
 
