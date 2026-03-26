@@ -89,7 +89,7 @@ Latent interpolation produces **smooth semantic trajectories** while embedding i
 
 ## Disclaimer
 
-This repository documents personal research exploring latent representations in Variational Autoencoders and their geometric properties in embedding spaces.
+This repository documents personal research exploring latent representations in Variational Autoencoders and their geometric properties in embedding spaces. The project utilized code optimization assistance from ChatGPT, and the final code was refined using the Codex fork. The implementation and finalization of the VAE architecture were performed independently.
 
 The work was undertaken as part of ongoing technical development in machine learning and AI assurance.
 All experiments use publicly available datasets and open-source tools and are conducted independently of my employer.
