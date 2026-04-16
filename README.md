@@ -44,10 +44,6 @@ Stable implementation and results for Phase 1 (AG News Pareto analysis).
 - **`phase2-latent-interp`**
 Experimental work exploring latent interpolation and geometry analysis using STS-B.
 
-Phase 2 documentation is available in:
-
-- `reports/phase2_latent_interpolation.md`
-
 Full project documentation is available here:
 
 ➡ **[Project Overview](reports/README.md)**
