@@ -29,6 +29,7 @@ Phase 2 probes the **geometry of the learned latent space** using sentence pairs
 
 STS-B provides interpretable sentence pairs that are well suited for **latent interpolation experiments**, allowing the trajectory between two sentences to be analysed in embedding space.
 
+**Correction:** an active-units check on the interpolation checkpoint found 0 of 32 units active at every threshold tested — the latent space carries no information about the input. See `reports/01_phase2_latent.md` for full detail.
 
 ---
 
@@ -39,7 +40,7 @@ To keep the main codebase stable, experimental work for Phase 2 is maintained in
 - **`main`**
 Stable implementation and results for Phase 1 (AG News Pareto analysis).
 
-- **`phase2-latent-interp`**
+- **`feat/phase2-latent-interp`**
 Experimental work exploring latent interpolation and geometry analysis using STS-B.
 
 
@@ -64,6 +65,7 @@ Full project documentation is available here:
 ├── scripts/
 │   ├── train.py              # Training entry point
 │   ├── eval.py               # Pareto analysis + plotting
+│   ├── active_units.py       # Active-units diagnostic
 |   └── interp.py             # Latent inperpolation
 │
 ├── artifacts/
