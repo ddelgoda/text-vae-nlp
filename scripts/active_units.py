@@ -144,9 +144,91 @@ def plot_heatmap(df: pd.DataFrame, outdir: Path) -> None:
     plt.close()
 
 
+def run_single_checkpoint(args, device):
+    """
+    One-off AU check against a single run directory, bypassing the
+    frozen-only grid path below. For checkpoints trained under a
+    different recipe (e.g. unfrozen encoder, beta warmup, free bits)
+    that aren't part of the frozen Phase 1 sweep and can't be pooled
+    into its grid summary/plots.
+    """
+    run_dir = Path(args.run_dir)
+    ms_path = run_dir / "metrics_summary.json"
+    d = json.loads(ms_path.read_text(encoding="utf-8"))
+
+    ckpt = d.get("best_model_path") or d.get("last_model_path")
+    if not ckpt or not Path(ckpt).exists():
+        raise FileNotFoundError(f"No usable checkpoint recorded in {ms_path}")
+    ckpt_kind = "best" if d.get("best_model_path") else "last"
+    print(f"Run: {d['run_id']}")
+    print(f"Checkpoint: {ckpt} ({ckpt_kind}.ckpt)")
+    print(f"freeze_transformer={d.get('freeze_transformer')}, "
+          f"kl_free_bits={d.get('kl_free_bits')}, "
+          f"beta_warmup_epochs={d.get('beta_warmup_epochs')}")
+
+    tokenizer = AutoTokenizer.from_pretrained(d["model_name"])
+    ds = load_dataset("stsb_multi_mt", name="en")[args.split]
+    n = min(args.limit_val, len(ds))
+    ds = ds.select(range(n))
+    texts = [" ".join(s.split()) for s in ds["sentence1"]]
+    print(f"Data: stsb_multi_mt (en), split='{args.split}', n={len(texts)} sentences, "
+          f"max_length={args.max_length}")
+
+    au = active_units_for_run(
+        ckpt_path=ckpt,
+        texts=texts,
+        tokenizer=tokenizer,
+        max_length=args.max_length,
+        device=device,
+        batch_size=args.batch_size,
+        au_threshold=args.au_threshold,
+    )
+    dim_var = au.pop("dim_var")
+
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    out = {
+        "run_id": d["run_id"],
+        "ckpt_path": ckpt,
+        "ckpt_kind": ckpt_kind,
+        "split": args.split,
+        "n_texts": len(texts),
+        "max_length": args.max_length,
+        "au_threshold": args.au_threshold,
+        "latent_dim": d["latent_dim"],
+        "beta": d["beta"],
+        "kl_free_bits": d.get("kl_free_bits"),
+        "kl_loss": d.get("kl_loss"),
+        "kl_used": d.get("kl_used"),
+        "recon_loss": d.get("recon_loss"),
+        **au,
+        "dim_var": dim_var,
+    }
+    out_path = outdir / f"active_units_{d['run_id']}.json"
+    out_path.write_text(json.dumps(out, indent=2), encoding="utf-8")
+
+    sweep_thresholds = [1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2]
+    print(f"\nn_active (threshold={args.au_threshold}): {au['n_active']} / {au['latent_dim']}")
+    print("\nThreshold sweep:")
+    for t in sweep_thresholds:
+        n = sum(1 for v in dim_var if v > t)
+        print(f"  {t:>8}: {n:2d} / {au['latent_dim']} active")
+    sorted_var = sorted(dim_var)
+    print(f"\nSorted per-dimension variances ({len(sorted_var)} dims):")
+    print(", ".join(f"{v:.5f}" for v in sorted_var))
+    print(f"\nWrote {out_path}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs_root", type=str, default="runs")
+    ap.add_argument("--run_dir", type=str, default=None,
+                     help="If set, run a one-off AU check on this single run "
+                          "directory instead of scanning runs_root for the "
+                          "frozen grid.")
+    ap.add_argument("--split", type=str, default="test",
+                     help="stsb_multi_mt split to use as input texts "
+                          "(only used with --run_dir).")
     ap.add_argument("--outdir", type=str, default="artifacts")
     ap.add_argument("--pattern", type=str, default="metrics_summary.json")
     ap.add_argument("--au_threshold", type=float, default=0.01)
@@ -155,10 +237,15 @@ def main():
     ap.add_argument("--max_length", type=int, default=64)
     args = ap.parse_args()
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if args.run_dir:
+        run_single_checkpoint(args, device)
+        return
+
     runs_root = Path(args.runs_root)
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     files = sorted(runs_root.rglob(args.pattern))
     if not files:

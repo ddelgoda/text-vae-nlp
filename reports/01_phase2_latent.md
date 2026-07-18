@@ -266,6 +266,8 @@ uv run python scripts/interp.py \
 
 ### Cosine Similarity Along Interpolation Path
 
+> **Superseded** — see Correction at the end of this report.
+
 The cosine similarity between decoded embeddings and the two endpoint sentences was tracked across the latent interpolation path.
 
 Example results are shown below.
@@ -283,6 +285,8 @@ These patterns suggest that the decoder introduces **non-linear structure in emb
 
 ### Latent Path Geometry
 
+> **Superseded** — see Correction at the end of this report.
+
 Geometry metrics confirm that the decoded interpolation trajectory differs from straight interpolation in embedding space.
 ![Geometry Summary](../artifacts/phase2_1_geometry_summary.csv)
 
@@ -298,6 +302,8 @@ Note: Because linear interpolation in embedding space is nearly straight, the ba
 
 
 ### Qualitative Neighbourhood Shift
+
+> **Superseded** — see Correction at the end of this report.
 
 Nearest-neighbour retrieval along the interpolation path illustrates how the decoded embeddings move through embedding space. Note: The midpoint is chosen as the interpolation step where similarity to both endpoints is most balanced. If this criterion selects an endpoint, the midpoint defaults to the central interpolation step to ensure distinct START–MIDDLE–END snapshots.
 
@@ -343,6 +349,8 @@ Although the interpolation does not produce a strict semantic progression toward
 
 ## Key Findings
 
+> **Note:** the findings below are superseded — see the Correction section.
+
 - The learned latent space supports coherent interpolation behaviour.
 - Collapse mitigation (β warm-up + free bits) is important for stable geometry.
 
@@ -350,5 +358,20 @@ Although the interpolation does not produce a strict semantic progression toward
 
 ## Limitations and Next Steps
 
+> **Note:** written under the pre-correction interpretation — see the Correction section.
+
 - Although latent interpolation produces stable trajectories in embedding space, the decoded intermediate points do not always form clear semantic transitions between the endpoint sentences. Nearest-neighbour retrieval indicates movement between embedding neighbourhoods, but the progression is not consistently interpretable. Further work is needed to improve the alignment between latent interpolation paths and semantic structure.
 - Additional sweeps over `β` and `latent_dim` can map how geometry changes with regularisation and capacity.
+
+---
+
+## Correction (added after initial analysis)
+
+- **Active units**: 0 of 32 active at every threshold from 0.001 to 0.05 on the checkpoint this report's results were generated from (`runs/ld32_b0.1_s42_20260311_001705/checkpoints/last.ckpt`). Per-dimension variance ranges 1.4e-6–1.2e-5 — roughly 800–7000× below the 0.01 active cutoff, and 2–3 orders of magnitude below the Phase 1 frozen sweep (which was itself fully collapsed). No bimodality: a single tight cluster, not a split between real units and a noise floor.
+- **Free-bits mechanism**: raw KL (0.0305) and `kl_used` (0.0497) are both higher than any Phase 1 run — by KL alone this would read as the healthiest configuration in the whole comparison. The free-bits floor (0.1/32 per dim) is satisfied by shrinking posterior variance (the `-log σ²` term), not by making the posterior mean depend on the input — KL divergence without information transfer. **Raw KL is not a collapse diagnostic once free bits are active**; active units are.
+- **Reinterpretation**: every result above is consistent with a decoder that ignores its latent input and reconstructs a near-constant point close to the corpus centroid.
+  - Fluctuating cosine similarity along the path — noise around a fixed decoded point, not curved traversal.
+  - Longer path length and non-zero curvature — small decoder-output jitter, not a structured manifold.
+  - Identical-similarity nearest-neighbour retrieval (START/MIDDLE/END each return semantically unrelated sentences at near-identical similarity, e.g. 0.843–0.845 across baseball/cupcake/motorcycle sentences at t=0) — the signature of one fixed decoded point sitting equidistant from an unrelated set of corpus sentences, not semantic movement.
+- **Retraction**: the "curved embedding manifold" conclusion is not supported by this checkpoint. The planned plain-autoencoder baseline (`reports/README.md`) is moot until a non-collapsed checkpoint exists to compare against.
+- **Key Findings, falsified**: the latent space does not support coherent interpolation — the decoder is not conditioning on `μ`. Collapse mitigation (β warm-up + free bits) did not produce stable geometry — it produced a stable *decoder output*, which is a different thing.
