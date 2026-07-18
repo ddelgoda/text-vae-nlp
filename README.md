@@ -46,8 +46,8 @@ Experimental work exploring latent interpolation and geometry analysis using STS
 Full project documentation is available here:
 
 ➡ **[Project Overview](reports/README.md)**
-➡ **[Phase 1 – Pareto Analysis](reports/phase1.md)**
-➡ **[Phase 2 – Latent Geometry](reports/phase2_latent_interpolation.md)**
+➡ **[Phase 1 – Pareto Analysis](reports/00_phase1_pareto.md)**
+➡ **[Phase 2 – Latent Geometry](reports/01_phase2_latent.md)**
 
 ---
 
