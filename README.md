@@ -44,13 +44,13 @@ To keep the main codebase stable, experimental work for Phase 2 is maintained in
 Stable implementation and results for Phase 1 (AG News Pareto analysis).
 
 - **`phase2-latent-interp`**
-Experimental work exploring latent interpolation and geometry analysis using STS-B.
+Experimental work exploring latent interpolation and geometry analysis using STS-B. The Phase 2 report and its correction only exist on this branch — the link below points there directly.
 
 Full project documentation is available here:
 
 ➡ **[Project Overview](reports/README.md)**
-➡ **[Phase 1 – Pareto Analysis](reports/phase1.md)**
-➡ **[Phase 2 – Latent Geometry](reports/phase2_latent_interpolation.md)**
+➡ **[Phase 1 – Pareto Analysis](reports/00_phase1_pareto.md)**
+➡ **[Phase 2 – Latent Geometry](https://github.com/ddelgoda/text-vae-nlp/blob/feat/phase2-latent-interp/reports/01_phase2_latent.md)** (on `phase2-latent-interp`, not present on `main`)
 
 ---
 
@@ -83,11 +83,18 @@ Full project documentation is available here:
 
 ## Key Result
 
-Latent interpolation produces **smooth semantic trajectories** while embedding interpolation remains nearly linear, indicating that the VAE decoder maps latent straight lines onto **curved embedding manifolds**.
+Both training recipes collapsed. Neither produced a latent space carrying information about the input: 0 of 1860 active units across the 75-run frozen sweep, and 0 of 32 on the unfrozen checkpoint used for interpolation.
+
+The notable part is how the second one hid it. Free bits raised raw KL above every Phase 1 run while active units fell to zero — the KL floor was satisfied by shrinking posterior variance rather than by making the posterior mean depend on the input. KL divergence without information transfer, from the mitigation intended to prevent exactly that.
+
+The earlier claim of **smooth semantic trajectories** and **curved embedding manifolds** described a near-constant decoder. See `reports/00_phase1_pareto.md`, and the Phase 2 report on [`phase2-latent-interp`](https://github.com/ddelgoda/text-vae-nlp/blob/feat/phase2-latent-interp/reports/01_phase2_latent.md) (not present on `main`).
 
 ## Disclaimer
 
-This repository documents personal research exploring latent representations in Variational Autoencoders and their geometric properties in embedding spaces. The project utilized code optimization assistance from ChatGPT, and the final code was refined using the Codex fork. The implementation and finalization of the VAE architecture were performed independently.
+A personal learning project — I built it to understand VAEs by working through one end to end, since passive reading doesn't produce real understanding.
 
-The work was undertaken as part of ongoing technical development in machine learning and AI assurance.
-All experiments use publicly available datasets and open-source tools and are conducted independently of my employer.
+Written collaboratively with AI tools throughout: ChatGPT and the Codex fork for initial development, Claude and Claude Code for later analysis and correction. My role was direction, questioning, and cross-checking. The Phase 1 evaluation bug and the posterior-collapse finding both came out of that process.
+
+Corrections are appended rather than edited in, so the original analysis and what was wrong with it stay visible.
+
+Experiments use public datasets and open-source tools, independently of my employer.
