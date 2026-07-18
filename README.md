@@ -19,7 +19,9 @@ Phase 1 performs hyperparameter sweeps on the **AG News** dataset to study the t
 - reconstruction accuracy
 - latent compression (KL divergence)
 
-These experiments identify **Pareto-optimal configurations** and a candidate model for further analysis.
+These experiments sweep the reconstruction–compression trade-off under a frozen encoder. The result is negative: an active-units check found 0 of 1860 latent units active across all 75 runs, so the frozen sweep is posterior-collapsed throughout.
+
+**Correction:** a pooling bug in `eval.py` had folded 2 unfrozen runs from later work into the Pareto front. With the condition filter fixed, the corrected knee is `ld=4, β=0.1` at `kl_min=0.001` — the least-collapsed point in the grid, not a working VAE configuration. See `reports/00_phase1_pareto.md` for full detail.
 
 ### Phase 2 — Latent Geometry Analysis (STS-B)
 

@@ -184,6 +184,16 @@ def main():
     ap.add_argument("--outdir", type=str, default="artifacts")
     ap.add_argument("--pattern", type=str, default="metrics_summary.json")
     ap.add_argument("--kl_min", type=float, default=0.005)
+    ap.add_argument(
+        "--frozen_only",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Restrict the pool to freeze_transformer=True runs (the Phase 1 "
+            "sweep). Later unfrozen runs use a different training recipe "
+            "and are not comparable on this Pareto front."
+        ),
+    )
     args = ap.parse_args()
     runs_root = Path(args.runs_root)
     outdir = Path(args.outdir)
@@ -193,12 +203,26 @@ def main():
     if not files:
         raise FileNotFoundError(f"No {args.pattern} found under {runs_root}")
     rows: List[dict] = []
+    skipped_condition = 0
     for fp in files:
         d = json.loads(fp.read_text(encoding="utf-8"))
         # Require key metrics
         if "recon_loss" not in d or "kl_loss" not in d:
             continue
+        # Condition filter: eval.py's recursive run search (rglob) picks up
+        # every metrics_summary.json under runs_root, including later,
+        # unfrozen runs that use a different training recipe (beta warmup,
+        # free bits). Those aren't comparable to the frozen sweep and were
+        # previously polluting the Pareto front.
+        if args.frozen_only and not d.get("freeze_transformer", False):
+            skipped_condition += 1
+            continue
         rows.append(d)
+    if skipped_condition:
+        print(
+            f"Excluded {skipped_condition} run(s) with freeze_transformer=False "
+            "(not part of the frozen sweep)."
+        )
     if not rows:
         raise RuntimeError(
             "No usable metrics_summary.json files found (missing recon_loss/kl_loss)."
