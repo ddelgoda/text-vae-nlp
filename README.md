@@ -34,6 +34,8 @@ Using separate datasets keeps:
 - **Phase 1 focused on model selection**
 - **Phase 2 focused on geometric evaluation**
 
+**Correction:** an active-units check on the interpolation checkpoint found 0 of 32 units active at every threshold tested — the latent space carries no information about the input. See the Phase 2 report on [`feat/phase2-latent-interp`](https://github.com/ddelgoda/text-vae-nlp/blob/feat/phase2-latent-interp/reports/01_phase2_latent.md) (not present on `main`) for full detail.
+
 ---
 
 ## Branch Structure
@@ -43,14 +45,14 @@ To keep the main codebase stable, experimental work for Phase 2 is maintained in
 - **`main`**
 Stable implementation and results for Phase 1 (AG News Pareto analysis).
 
-- **`phase2-latent-interp`**
+- **`feat/phase2-latent-interp`**
 Experimental work exploring latent interpolation and geometry analysis using STS-B. The Phase 2 report and its correction only exist on this branch — the link below points there directly.
 
 Full project documentation is available here:
 
 ➡ **[Project Overview](reports/README.md)**
 ➡ **[Phase 1 – Pareto Analysis](reports/00_phase1_pareto.md)**
-➡ **[Phase 2 – Latent Geometry](https://github.com/ddelgoda/text-vae-nlp/blob/feat/phase2-latent-interp/reports/01_phase2_latent.md)** (on `phase2-latent-interp`, not present on `main`)
+➡ **[Phase 2 – Latent Geometry](https://github.com/ddelgoda/text-vae-nlp/blob/feat/phase2-latent-interp/reports/01_phase2_latent.md)** (on `feat/phase2-latent-interp`, not present on `main`)
 
 ---
 
@@ -67,7 +69,7 @@ Full project documentation is available here:
 ├── scripts/
 │   ├── train.py              # Training entry point
 │   ├── eval.py               # Pareto analysis + plotting
-|   └── interp.py             # Latent inperpolation
+|   └── active_units.py       # Active-units diagnostic
 │
 ├── artifacts/
 │   ├── pareto_plot.png
@@ -87,7 +89,7 @@ Both training recipes collapsed. Neither produced a latent space carrying inform
 
 The notable part is how the second one hid it. Free bits raised raw KL above every Phase 1 run while active units fell to zero — the KL floor was satisfied by shrinking posterior variance rather than by making the posterior mean depend on the input. KL divergence without information transfer, from the mitigation intended to prevent exactly that.
 
-The earlier claim of **smooth semantic trajectories** and **curved embedding manifolds** described a near-constant decoder. See `reports/00_phase1_pareto.md`, and the Phase 2 report on [`phase2-latent-interp`](https://github.com/ddelgoda/text-vae-nlp/blob/feat/phase2-latent-interp/reports/01_phase2_latent.md) (not present on `main`).
+The earlier claim of **smooth semantic trajectories** and **curved embedding manifolds** described a near-constant decoder. See `reports/00_phase1_pareto.md`, and the Phase 2 report on [`feat/phase2-latent-interp`](https://github.com/ddelgoda/text-vae-nlp/blob/feat/phase2-latent-interp/reports/01_phase2_latent.md) (not present on `main`).
 
 ## Disclaimer
 
