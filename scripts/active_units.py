@@ -36,6 +36,28 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
 from textvae.lit_module import LitTextVAE  # noqa: E402
 
 
+def load_eval_texts(dataset: str, limit_val: int) -> tuple[List[str], str]:
+    """
+    Returns (texts, tag) for the requested diagnostic dataset.
+
+    "ag_news" uses the same split (ag_news/test) and raw text field that
+    scripts/train.py validates on for the Phase 1 sweep, so the active-units
+    check runs on in-domain data. "stsb" is the original cross-domain
+    diagnostic (stsb_multi_mt/test, sentence1, whitespace-normalized).
+    """
+    if dataset == "ag_news":
+        ds = load_dataset("ag_news")["test"]
+        ds = ds.select(range(min(limit_val, len(ds))))
+        texts = list(ds["text"])
+        return texts, "agnews"
+    elif dataset == "stsb":
+        ds = load_dataset("stsb_multi_mt", name="en")["test"]
+        ds = ds.select(range(min(limit_val, len(ds))))
+        texts = [" ".join(s.split()) for s in ds["sentence1"]]
+        return texts, "stsb"
+    raise ValueError(f"Unknown --dataset {dataset!r} (expected 'ag_news' or 'stsb')")
+
+
 def load_model_from_ckpt(ckpt_path: str, device: torch.device) -> LitTextVAE:
     model = LitTextVAE.load_from_checkpoint(ckpt_path, map_location=device)
     model.eval()
@@ -100,7 +122,7 @@ def active_units_for_run(
     }
 
 
-def plot_active_vs_latent(df: pd.DataFrame, outdir: Path) -> None:
+def plot_active_vs_latent(df: pd.DataFrame, outdir: Path, tag: str) -> None:
     plt.figure(figsize=(7, 5))
     for beta, g in df.groupby("beta"):
         g = g.sort_values("latent_dim")
@@ -116,14 +138,14 @@ def plot_active_vs_latent(df: pd.DataFrame, outdir: Path) -> None:
     )
     plt.xlabel("latent_dim")
     plt.ylabel("active units (count)")
-    plt.title("Active units vs latent capacity (frozen sweep)")
+    plt.title(f"Active units vs latent capacity (frozen sweep, {tag})")
     plt.legend(fontsize=8)
     plt.tight_layout()
-    plt.savefig(outdir / "active_units_vs_latent_dim.png", dpi=180)
+    plt.savefig(outdir / f"active_units_vs_latent_dim_{tag}.png", dpi=180)
     plt.close()
 
 
-def plot_heatmap(df: pd.DataFrame, outdir: Path) -> None:
+def plot_heatmap(df: pd.DataFrame, outdir: Path, tag: str) -> None:
     pivot = (
         df.pivot_table(
             index="latent_dim", columns="beta", values="active_ratio", aggfunc="mean"
@@ -138,9 +160,9 @@ def plot_heatmap(df: pd.DataFrame, outdir: Path) -> None:
     plt.yticks(range(len(pivot.index)), [str(r) for r in pivot.index])
     plt.xlabel("beta")
     plt.ylabel("latent_dim")
-    plt.title("Active-unit ratio (mean per grid cell, frozen sweep)")
+    plt.title(f"Active-unit ratio (mean per grid cell, frozen sweep, {tag})")
     plt.tight_layout()
-    plt.savefig(outdir / "heatmap_active_units.png", dpi=180)
+    plt.savefig(outdir / f"heatmap_active_units_{tag}.png", dpi=180)
     plt.close()
 
 
@@ -153,6 +175,18 @@ def main():
     ap.add_argument("--limit_val", type=int, default=500)
     ap.add_argument("--batch_size", type=int, default=32)
     ap.add_argument("--max_length", type=int, default=64)
+    ap.add_argument(
+        "--dataset",
+        choices=["ag_news", "stsb"],
+        default="ag_news",
+        help=(
+            "Diagnostic corpus. 'ag_news' (default) uses the same "
+            "ag_news/test split the Phase 1 sweep validated on, in-domain "
+            "with training. 'stsb' is the original cross-domain diagnostic "
+            "(stsb_multi_mt/test). Output filenames are tagged by dataset "
+            "so both result sets can coexist."
+        ),
+    )
     args = ap.parse_args()
 
     runs_root = Path(args.runs_root)
@@ -184,9 +218,8 @@ def main():
     # Shared validation set + tokenizer across all runs (same encoder, same split).
     model_name = rows[0]["model_name"]
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    ds = load_dataset("stsb_multi_mt", name="en")["test"]
-    ds = ds.select(range(min(args.limit_val, len(ds))))
-    texts = [" ".join(s.split()) for s in ds["sentence1"]]
+    texts, tag = load_eval_texts(args.dataset, args.limit_val)
+    print(f"Dataset: {args.dataset} ({len(texts)} texts, tag={tag})")
 
     results = []
     for i, d in enumerate(rows, start=1):
@@ -216,12 +249,12 @@ def main():
     # Persist raw per-dimension variances (not just min/max/mean) so the
     # active-unit threshold can be swept/audited without rerunning inference.
     dim_var_by_run = {r["run_id"]: r.pop("dim_var") for r in results}
-    (outdir / "active_units_dim_var.json").write_text(
+    (outdir / f"active_units_dim_var_{tag}.json").write_text(
         json.dumps(dim_var_by_run, indent=2), encoding="utf-8"
     )
 
     df = pd.DataFrame(results)
-    df.to_csv(outdir / "active_units_per_run.csv", index=False)
+    df.to_csv(outdir / f"active_units_per_run_{tag}.csv", index=False)
 
     # Threshold sensitivity: recompute n_active at several thresholds from
     # the raw per-dimension variances to check the au_threshold=0.01 choice
@@ -247,7 +280,7 @@ def main():
             }
         )
     sweep_df = pd.DataFrame(sweep_rows)
-    sweep_df.to_csv(outdir / "active_units_threshold_sweep.csv", index=False)
+    sweep_df.to_csv(outdir / f"active_units_threshold_sweep_{tag}.csv", index=False)
 
     summary = (
         df.groupby(["latent_dim", "beta"])
@@ -261,18 +294,18 @@ def main():
         .reset_index()
         .sort_values(["latent_dim", "beta"])
     )
-    summary.to_csv(outdir / "active_units_summary.csv", index=False)
+    summary.to_csv(outdir / f"active_units_summary_{tag}.csv", index=False)
 
-    plot_active_vs_latent(df, outdir)
-    plot_heatmap(df, outdir)
+    plot_active_vs_latent(df, outdir, tag)
+    plot_heatmap(df, outdir, tag)
 
     print("\nWrote:")
-    print(outdir / "active_units_per_run.csv")
-    print(outdir / "active_units_summary.csv")
-    print(outdir / "active_units_dim_var.json")
-    print(outdir / "active_units_threshold_sweep.csv")
-    print(outdir / "active_units_vs_latent_dim.png")
-    print(outdir / "heatmap_active_units.png")
+    print(outdir / f"active_units_per_run_{tag}.csv")
+    print(outdir / f"active_units_summary_{tag}.csv")
+    print(outdir / f"active_units_dim_var_{tag}.json")
+    print(outdir / f"active_units_threshold_sweep_{tag}.csv")
+    print(outdir / f"active_units_vs_latent_dim_{tag}.png")
+    print(outdir / f"heatmap_active_units_{tag}.png")
 
     print("\nSummary (mean active units / latent_dim):")
     print(summary.to_string(index=False))

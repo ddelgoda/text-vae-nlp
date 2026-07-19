@@ -100,9 +100,6 @@ def plot_pareto(df, front, sweet, outdir, kl_min:float):
             fontsize=9,
         )
 
-    plt.savefig(outdir / "pareto_plot_annotated.png", dpi=180)
-
-
     # Collapse threshold line
     plt.axvline(
         x=kl_min,
@@ -117,6 +114,7 @@ def plot_pareto(df, front, sweet, outdir, kl_min:float):
     plt.legend()
     plt.tight_layout()
     plt.savefig(outdir / "pareto_plot.png", dpi=180)
+    plt.savefig(outdir / "pareto_plot_annotated.png", dpi=180)
     plt.close()
 
 def plot_heatmaps(df: pd.DataFrame, outdir: Path) -> None:
