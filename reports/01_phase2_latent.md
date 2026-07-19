@@ -37,8 +37,8 @@ Expected behaviour:
 
 Why collapse matters:
 
-- If KL ≈ 0, latent variables are ignored  
-- The model behaves like a plain autoencoder  
+- If KL ≈ 0, the posterior `q(z|x)` becomes nearly independent of `x`, so the decoder receives little or no input-specific information through the latent  
+- This differs from a plain autoencoder, which still passes input-dependent information through its deterministic bottleneck  
 - Interpolation becomes meaningless  
 
 Phase 2 assumes Phase 1 has already removed collapsed models.
@@ -368,10 +368,11 @@ Although the interpolation does not produce a strict semantic progression toward
 ## Correction (added after initial analysis)
 
 - **Active units**: 0 of 32 active at every threshold from 0.001 to 0.05 on the checkpoint this report's results were generated from (`runs/ld32_b0.1_s42_20260311_001705/checkpoints/last.ckpt`). Per-dimension variance ranges 1.4e-6–1.2e-5 — roughly 800–7000× below the 0.01 active cutoff, and 2–3 orders of magnitude below the Phase 1 frozen sweep (which was itself fully collapsed). No bimodality: a single tight cluster, not a split between real units and a noise floor.
-- **Free-bits mechanism**: raw KL (0.0305) and `kl_used` (0.0497) are both higher than any Phase 1 run — by KL alone this would read as the healthiest configuration in the whole comparison. The free-bits floor (0.1/32 per dim) is satisfied by shrinking posterior variance (the `-log σ²` term), not by making the posterior mean depend on the input — KL divergence without information transfer. **Raw KL is not a collapse diagnostic once free bits are active**; active units are.
-- **Reinterpretation**: every result above is consistent with a decoder that ignores its latent input and reconstructs a near-constant point close to the corpus centroid.
+- **Free-bits mechanism — this explanation is withdrawn.** An earlier version of this correction argued that raw KL (0.0305) and `kl_used` (0.0497) were higher than any Phase 1 run, and that the free-bits floor was being satisfied by shrinking posterior variance rather than by input-dependent posterior means. Both KL values are inflated by an array-shape bug in `_loss_terms` (see Known Issues in the main README): the per-sample KL is summed over the batch axis rather than the latent axis, inflating the logged value by roughly the batch size (16). Corrected, the per-sample KL is approximately 0.002 — within the Phase 1 collapsed range, not above it. The free-bits floor also clamps per-sample totals rather than per-dimension, so free bits never enforced the intended constraint. The collapse finding is unaffected: active units are computed directly from posterior means and do not touch this code path.
+- **Reinterpretation**: every result above is consistent with a decoder effectively insensitive to the input-dependent component of the latent, reconstructing a near-constant point close to the corpus centroid. (This is inferred from the results rather than measured directly; a latent-ablation or centroid-distance test would establish it.)
   - Fluctuating cosine similarity along the path — noise around a fixed decoded point, not curved traversal.
   - Longer path length and non-zero curvature — small decoder-output jitter, not a structured manifold.
   - Identical-similarity nearest-neighbour retrieval (START/MIDDLE/END each return semantically unrelated sentences at near-identical similarity, e.g. 0.843–0.845 across baseball/cupcake/motorcycle sentences at t=0) — the signature of one fixed decoded point sitting equidistant from an unrelated set of corpus sentences, not semantic movement.
 - **Retraction**: the "curved embedding manifold" conclusion is not supported by this checkpoint. The planned plain-autoencoder baseline (`reports/README.md`) is moot until a non-collapsed checkpoint exists to compare against.
-- **Key Findings, falsified**: the latent space does not support coherent interpolation — the decoder is not conditioning on `μ`. Collapse mitigation (β warm-up + free bits) did not produce stable geometry — it produced a stable *decoder output*, which is a different thing.
+- **Key Findings, falsified**: the latent space does not support coherent interpolation — no detectable input-dependent signal reaches the decoder through `μ`. Collapse mitigation (β warm-up + free bits) did not produce stable geometry; it produced a stable *decoder output*, which is a different thing. Since free bits were misimplemented, whether a correct implementation would prevent collapse remains untested.
+- **Scope**: a single checkpoint, 5 epochs, small training subset. This is a finding about this run, not about embedding-space VAEs in general.
